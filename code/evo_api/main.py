@@ -116,6 +116,60 @@ def _run_evolution(task_id: str, req: EvolveRequest):
     _tasks[task_id]["finished_at"] = datetime.now(timezone.utc).isoformat()
     _tasks[task_id]["status"] = "ok" if result.returncode == 0 else "error"
 
+    # Push evolution_metric lines from subprocess stdout directly to Loki HTTP API
+    for line in (result.stdout or "").splitlines():
+        stripped = line.strip()
+        if stripped.startswith("{") and '"evolution_metric"' in stripped:
+            try:
+                _push_metric_to_loki(json.loads(stripped))
+            except Exception:
+                pass
+
+
+LOKI_URL = os.environ.get("LOKI_URL", "http://loki:3100")
+
+
+def _push_metric_to_loki(entry: dict):
+    """Push a single evolution_metric entry to Loki via HTTP API.
+
+    Always uses current time as the Loki stream timestamp to avoid out-of-order
+    rejections. The original run timestamp is preserved in the JSON payload.
+    """
+    import httpx as _httpx
+    ts_ns = str(int(datetime.now(timezone.utc).timestamp() * 1_000_000_000))
+
+    log_line = json.dumps({**entry, "type": "evolution_metric"}, ensure_ascii=False)
+    payload = {
+        "streams": [{
+            "stream": {
+                "container_name": "hermes-evo-api",
+                "source": "evolution_metric",
+                "profile": entry.get("profile", ""),
+                "skill": entry.get("skill", ""),
+            },
+            "values": [[ts_ns, log_line]],
+        }]
+    }
+    _httpx.post(f"{LOKI_URL}/loki/api/v1/push", json=payload, timeout=5)
+
+
+def _emit_scores_to_loki():
+    """Push all scores.json entries to Loki with their original timestamps."""
+    scores_file = DATA_DIR / "registry" / "scores.json"
+    if not scores_file.exists():
+        return 0
+    try:
+        scores = json.loads(scores_file.read_text())
+        for entry in scores:
+            try:
+                _push_metric_to_loki(entry)
+            except Exception as e:
+                print(f"[warn] Loki push failed for {entry.get('run_id')}: {e}", flush=True)
+        return len(scores)
+    except Exception as e:
+        print(f"[warn] flush-metrics error: {e}", flush=True)
+        return 0
+
 
 # ---------------------------------------------------------------------------
 # Endpoints
@@ -296,6 +350,21 @@ async def scores():
     return json.loads(scores_file.read_text())
 
 
+@app.post("/flush-metrics", summary="Replay scores.json → stdout (→ Loki) for Grafana backfill")
+async def flush_metrics():
+    """Emit all historical scores as evolution_metric log lines so Loki/Grafana can see them."""
+    count = _emit_scores_to_loki()
+    return {"flushed": count, "message": f"Emitted {count} evolution_metric log lines to stdout → Loki"}
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "data_dir": str(DATA_DIR)}
+
+
+@app.on_event("startup")
+async def startup_emit_metrics():
+    """On startup, emit any historical scores so Loki sees them even after container restarts."""
+    import asyncio
+    await asyncio.sleep(2)  # let Loki driver initialize
+    _emit_scores_to_loki()
