@@ -3,7 +3,7 @@
   "skill": "charm-coach",
   "updated_at": "2026-05-23",
   "session_count_scanned": 50,
-  "relevant_fragments": 6,
+  "relevant_fragments": 3,
   "genes": [
     {
       "id": "g001",
@@ -22,23 +22,31 @@
       "evidence_sessions": [
         "session_id"
       ]
+    },
+    {
+      "id": "g003",
+      "type": "effective_pattern",
+      "content": "当用户质疑角色身份时，直接承认并询问具体需求，避免争论或防御性回应。",
+      "strength": 0.8,
+      "evidence_sessions": [
+        "session_id"
+      ]
+    },
+    {
+      "id": "g004",
+      "type": "anti_pattern",
+      "content": "用户反问角色身份（如“你不知道小度？”）时，若agent不回应或回避，会导致对话中断或信任下降。",
+      "strength": 0.7,
+      "evidence_sessions": [
+        "session_id"
+      ]
     }
   ],
   "kg_triples": [
     {
-      "subject": "charm_tactics_skill",
-      "predicate": "基于",
-      "object_": "神经科学原理"
-    },
-    {
-      "subject": "回应策略",
-      "predicate": "需要",
-      "object_": "历史会话上下文"
-    },
-    {
-      "subject": "状态依存记忆",
-      "predicate": "支持",
-      "object_": "情绪状态作为记忆提取线索"
+      "subject": "charm-coach",
+      "predicate": "被质疑身份时",
+      "object_": "应直接承认并询问用户需求"
     }
   ]
 }
