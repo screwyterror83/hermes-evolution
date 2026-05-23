@@ -1,66 +1,100 @@
 """
-AFlow Adapter — Phase 3: SKILL.md → Module Graph
+AFlow Adapter — SKILL.md -> Section Graph
 
-Parses SKILL.md Modules (A-N/P) into a JSON graph suitable for
-EvoAgentX AFlow structural optimization.
+Parses a SKILL.md into a list of sections (nodes) with their content.
+Supports multiple header styles used across Hermes skills:
+  - ## Part N: Title
+  - ### Module X: Title
+  - ## SectionName
+  - ## Layer N: Title
 
 Graph format:
 {
+  "skill_path": "...",
+  "frontmatter": "---\n...\n---",
+  "preamble": "text before first section",
+  "node_count": N,
   "nodes": [
-    {"id": "A", "label": "Module A: ...", "content": "...", "priority": 1}
+    {
+      "id": "s0",
+      "level": 2,
+      "header": "## Part 0: Theory",
+      "title": "Part 0: Theory",
+      "content": "full section text including header",
+      "priority": 0,
+      "score": 0.0
+    }
   ],
-  "edges": [
-    {"from": "A", "to": "B", "weight": 1.0, "relation": "calls"}
-  ]
+  "edges": []
 }
 """
 import re
 from pathlib import Path
 
 
+# Match level-2 or level-3 headers (##, ###)
+_HEADER_RE = re.compile(r"^(#{2,3})\s+(.+)$", re.MULTILINE)
+
+
 def parse_skill_to_graph(skill_path: Path) -> dict:
-    """Parse SKILL.md into a module graph. Phase 3 stub."""
+    """Parse SKILL.md into a section graph."""
     content = skill_path.read_text(encoding="utf-8")
 
-    # Extract module sections — pattern: ## Module X: Title or ### Module X
-    module_pattern = re.compile(
-        r"^#{2,3}\s+(?:Module\s+)?([A-P])[:\s]+(.+?)$",
-        re.MULTILINE
-    )
+    # Extract YAML frontmatter
+    frontmatter = ""
+    body = content
+    if content.startswith("---"):
+        end = content.find("\n---", 3)
+        if end > 0:
+            frontmatter = content[: end + 4]
+            body = content[end + 4:]
+
+    # Find all level-2 and level-3 headers
+    headers = list(_HEADER_RE.finditer(body))
 
     nodes = []
-    edges = []
-    prev_id = None
+    preamble = body[: headers[0].start()].strip() if headers else body.strip()
 
-    for match in module_pattern.finditer(content):
-        mod_id = match.group(1)
-        mod_label = match.group(2).strip()
+    for i, m in enumerate(headers):
+        level = len(m.group(1))
+        title = m.group(2).strip()
 
-        # Extract module content (text until next module header)
-        start = match.end()
-        next_match = module_pattern.search(content, start)
-        end = next_match.start() if next_match else len(content)
-        mod_content = content[start:end].strip()[:500]  # truncate for graph
+        # Section body = text until next same-or-higher-level header
+        start = m.start()
+        end = len(body)
+        for j in range(i + 1, len(headers)):
+            next_level = len(headers[j].group(1))
+            if next_level <= level:
+                end = headers[j].start()
+                break
+
+        section_text = body[start:end].rstrip()
 
         nodes.append({
-            "id": mod_id,
-            "label": f"Module {mod_id}: {mod_label}",
-            "content": mod_content,
-            "priority": len(nodes) + 1,  # initial order = priority
+            "id": f"s{i}",
+            "level": level,
+            "header": m.group(0),
+            "title": title,
+            "content": section_text,
+            "priority": i,      # initial order = priority; AFlow updates this
+            "score": 0.0,       # AFlow scoring
         })
 
-        # Default linear edge from previous module
-        if prev_id is not None:
-            edges.append({
-                "from": prev_id,
-                "to": mod_id,
-                "weight": 1.0,
-                "relation": "sequence",
-            })
-        prev_id = mod_id
+    # Linear edges (default sequence)
+    edges = []
+    top_level = [n for n in nodes if n["level"] == 2]
+    for k in range(len(top_level) - 1):
+        edges.append({
+            "from": top_level[k]["id"],
+            "to": top_level[k + 1]["id"],
+            "weight": 1.0,
+            "relation": "sequence",
+        })
 
     return {
         "skill_path": str(skill_path),
+        "frontmatter": frontmatter,
+        "preamble": preamble,
         "node_count": len(nodes),
         "nodes": nodes,
         "edges": edges,
@@ -72,4 +106,8 @@ if __name__ == "__main__":
     import sys
     path = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("SKILL.md")
     graph = parse_skill_to_graph(path)
-    print(json.dumps(graph, indent=2, ensure_ascii=False))
+    # Print summary
+    print(f"Sections: {graph['node_count']}")
+    for n in graph["nodes"]:
+        indent = "  " if n["level"] == 3 else ""
+        print(f"  {indent}[{n['id']}] lv{n['level']} — {n['title'][:60]}")

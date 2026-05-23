@@ -1,10 +1,114 @@
 {
   "profile": "founder",
   "skill": "business",
-  "updated_at": "2026-05-22",
-  "session_count_scanned": 0,
-  "relevant_fragments": 0,
-  "genes": [],
-  "kg_triples": [],
-  "_note": "Phase 1 stub. Run `runner.py extract --profile founder --skill business` to populate."
+  "updated_at": "2026-05-23",
+  "session_count_scanned": 20,
+  "relevant_fragments": 26,
+  "genes": [
+    {
+      "id": "g001",
+      "type": "effective_pattern",
+      "content": "用户明确要求跳出Google搜索局限，转向RSS订阅和论坛等多元渠道获取实时信息，以提升调研质量。",
+      "strength": 0.85,
+      "evidence_sessions": [
+        "session_001"
+      ]
+    },
+    {
+      "id": "g002",
+      "type": "effective_pattern",
+      "content": "用户将复杂商业问题拆解为可验证变量（市场接受度、竞争壁垒、自身能力），指导agent进行针对性调研。",
+      "strength": 0.9,
+      "evidence_sessions": [
+        "session_001"
+      ]
+    },
+    {
+      "id": "g003",
+      "type": "anti_pattern",
+      "content": "Agent依赖单一Google搜索渠道获取信息，被用户指出数据落后且质量不佳，导致用户不满并要求升级方法。",
+      "strength": 0.8,
+      "evidence_sessions": [
+        "session_001"
+      ]
+    },
+    {
+      "id": "g004",
+      "type": "anti_pattern",
+      "content": "Agent在对话中多次重复输出相同RSS配置列表和问题描述，未有效推进任务，造成冗余和用户重复提问。",
+      "strength": 0.7,
+      "evidence_sessions": [
+        "session_001"
+      ]
+    },
+    {
+      "id": "g005",
+      "type": "effective_pattern",
+      "content": "用户主动要求Agent突破单一搜索渠道，整合RSS订阅、论坛等多源信息，以对抗Google搜索质量下降问题",
+      "strength": 0.85,
+      "evidence_sessions": [
+        "session_founder_business_001"
+      ]
+    },
+    {
+      "id": "g006",
+      "type": "anti_pattern",
+      "content": "Agent过度依赖Google搜索且未主动探索替代信息源，导致用户反馈数据落后、质量不佳，需用户明确指令才转向RSS等渠道",
+      "strength": 0.75,
+      "evidence_sessions": [
+        "session_founder_business_001"
+      ]
+    },
+    {
+      "id": "g007",
+      "type": "effective_pattern",
+      "content": "用户将复杂商业调研拆解为可验证变量（市场接受度/竞争壁垒/自身能力），并明确要求Agent从网络挖掘具体细节而非空谈",
+      "strength": 0.8,
+      "evidence_sessions": [
+        "session_founder_business_001"
+      ]
+    }
+  ],
+  "kg_triples": [
+    {
+      "subject": "用户(founder)",
+      "predicate": "要求",
+      "object_": "Agent突破单一搜索渠道"
+    },
+    {
+      "subject": "用户(founder)",
+      "predicate": "评估",
+      "object_": "Google搜索返回质量不好"
+    },
+    {
+      "subject": "Agent",
+      "predicate": "初始依赖",
+      "object_": "Google搜索作为主要信息源"
+    },
+    {
+      "subject": "用户(founder)",
+      "predicate": "偏好",
+      "object_": "RSS集成和论坛作为替代信息渠道"
+    },
+    {
+      "subject": "用户(founder)",
+      "predicate": "提出",
+      "object_": "核心问题框架（三个关键变量）"
+    },
+    {
+      "subject": "市场接受度",
+      "predicate": "需要验证",
+      "object_": "印尼用户付费意愿"
+    },
+    {
+      "subject": "竞争壁垒",
+      "predicate": "存在",
+      "object_": "窗口期"
+    },
+    {
+      "subject": "自身能力",
+      "predicate": "短板是",
+      "object_": "印尼本地化"
+    }
+  ]
 }

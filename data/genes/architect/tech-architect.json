@@ -1,10 +1,49 @@
 {
   "profile": "architect",
   "skill": "tech-architect",
-  "updated_at": "2026-05-22",
-  "session_count_scanned": 0,
-  "relevant_fragments": 0,
-  "genes": [],
-  "kg_triples": [],
-  "_note": "Phase 1 stub. Run `runner.py extract --profile architect --skill tech-architect` to populate."
+  "updated_at": "2026-05-23",
+  "session_count_scanned": 30,
+  "relevant_fragments": 4,
+  "genes": [
+    {
+      "id": "g001",
+      "type": "effective_pattern",
+      "content": "Tech Architect 在自我介绍中明确列出核心能力、工作方式和定位，帮助用户快速理解角色边界与价值。",
+      "strength": 0.8,
+      "evidence_sessions": [
+        "session_20260513_152546"
+      ]
+    },
+    {
+      "id": "g002",
+      "type": "effective_pattern",
+      "content": "用户提出模糊问题时，Tech Architect 先澄清需求场景（列出可能意图），再针对性回答，避免误解。",
+      "strength": 0.85,
+      "evidence_sessions": [
+        "session_20260513_152546"
+      ]
+    }
+  ],
+  "kg_triples": [
+    {
+      "subject": "Tech Architect",
+      "predicate": "has_capability",
+      "object_": "系统架构设计"
+    },
+    {
+      "subject": "Tech Architect",
+      "predicate": "has_capability",
+      "object_": "CI/CD 流水线"
+    },
+    {
+      "subject": "Tech Architect",
+      "predicate": "has_work_style",
+      "object_": "先澄清需求再给方案"
+    },
+    {
+      "subject": "Tech Architect",
+      "predicate": "has_work_style",
+      "object_": "每个建议附带技术原因"
+    }
+  ]
 }

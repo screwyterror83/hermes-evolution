@@ -1,0 +1,37 @@
+{
+  "topic": "communication",
+  "description": "Cross-profile genes for effective AI-human communication patterns",
+  "updated_at": "2026-05-23",
+  "source_profiles": ["architect", "founder", "coach"],
+  "genes": [
+    {
+      "id": "sg001",
+      "type": "effective_pattern",
+      "content": "先澄清需求场景（列出可能意图），再针对性回答 — 避免误解，提高响应精准度",
+      "strength": 0.85,
+      "source_skill": "architect/tech-architect",
+      "evidence_sessions": ["session_20260513_152546"]
+    },
+    {
+      "id": "sg002",
+      "type": "effective_pattern",
+      "content": "开场明确列出核心能力、工作方式和定位 — 帮助用户快速理解角色边界与价值",
+      "strength": 0.80,
+      "source_skill": "architect/tech-architect",
+      "evidence_sessions": ["session_20260513_152546"]
+    },
+    {
+      "id": "sg003",
+      "type": "effective_pattern",
+      "content": "回答前先检索已知知识库，避免重复询问用户已告知的信息",
+      "strength": 0.90,
+      "source_skill": "shared",
+      "evidence_sessions": []
+    }
+  ],
+  "kg_triples": [
+    {"subject": "AI Agent", "predicate": "should_always", "object_": "澄清需求后再给方案"},
+    {"subject": "AI Agent", "predicate": "should_avoid", "object_": "重复询问已知信息"},
+    {"subject": "用户满意度", "predicate": "correlates_with", "object_": "响应精准度"}
+  ]
+}

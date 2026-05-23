@@ -4,7 +4,7 @@ targets:
   - profile: personal
     skill: tech-architect
     auto: false
-    optimizer: gepa
+    optimizer: gepa+aflow
     iterations: 10
     min_improvement_pct: 2.0
     hitl_required: true
@@ -13,7 +13,7 @@ targets:
   - profile: personal
     skill: research
     auto: false
-    optimizer: gepa
+    optimizer: gepa+aflow
     iterations: 10
     min_improvement_pct: 2.0
     hitl_required: true
@@ -21,7 +21,7 @@ targets:
   - profile: personal
     skill: knowledge
     auto: false
-    optimizer: gepa
+    optimizer: gepa+aflow
     iterations: 10
     min_improvement_pct: 2.0
     hitl_required: true
@@ -31,27 +31,27 @@ targets:
     skill: charm-tactics
     auto: true
     schedule: "0 2 * * 1"        # every Monday 2AM
-    optimizer: gepa
+    optimizer: gepa+aflow
     iterations: 10
     min_improvement_pct: 2.0
     hitl_required: true
-    notes: "Primary coaching skill. Baseline 30.76, best 38.74 (2026-05-22)."
+    notes: "Primary coaching skill. First GEPA runs 0% improvement — needs gene injection. Baseline ~0.30."
 
   # ── architect ───────────────────────────────────────────────────
   - profile: architect
     skill: tech-architect
     auto: true
     schedule: "0 3 * * 1"        # every Monday 3AM
-    optimizer: gepa
+    optimizer: gepa+aflow
     iterations: 10
     min_improvement_pct: 2.0
     hitl_required: true
-    notes: "Core architect skill. First evolution pending."
+    notes: "Evolved 2026-05-23: baseline 0.347 → best 0.658 (+89.6%). Deployed."
 
   - profile: architect
     skill: software-development
     auto: false
-    optimizer: gepa
+    optimizer: gepa+aflow
     iterations: 10
     min_improvement_pct: 2.0
     hitl_required: true
@@ -59,7 +59,7 @@ targets:
   - profile: architect
     skill: devops
     auto: false
-    optimizer: gepa
+    optimizer: gepa+aflow
     iterations: 10
     min_improvement_pct: 2.0
     hitl_required: true
@@ -69,7 +69,7 @@ targets:
     skill: business
     auto: true
     schedule: "0 4 * * 1"        # every Monday 4AM
-    optimizer: gepa
+    optimizer: gepa+aflow
     iterations: 10
     min_improvement_pct: 2.0
     hitl_required: true
@@ -77,7 +77,7 @@ targets:
   - profile: founder
     skill: communication
     auto: false
-    optimizer: gepa
+    optimizer: gepa+aflow
     iterations: 10
     min_improvement_pct: 2.0
     hitl_required: true
@@ -85,7 +85,7 @@ targets:
   - profile: founder
     skill: pitch-deck
     auto: false
-    optimizer: gepa
+    optimizer: gepa+aflow
     iterations: 10
     min_improvement_pct: 2.0
     hitl_required: true
@@ -93,7 +93,7 @@ targets:
   - profile: founder
     skill: finance
     auto: false
-    optimizer: gepa
+    optimizer: gepa+aflow
     iterations: 10
     min_improvement_pct: 2.0
     hitl_required: true

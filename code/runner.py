@@ -48,15 +48,33 @@ SKILL_SIZE_LIMIT = 25000  # chars (raised from 15000 — some skills like tech-a
 # ---------------------------------------------------------------------------
 
 def _load_genes(profile: str, skill: str) -> list[dict]:
-    """Load gene file if present; return empty list otherwise."""
+    """Load gene file for profile/skill + any matching shared genes."""
+    genes: list[dict] = []
+
+    # Profile-specific genes
     gene_file = DATA_DIR / "genes" / profile / f"{skill}.json"
     if gene_file.exists():
         try:
             data = json.loads(gene_file.read_text())
-            return data.get("genes", [])
+            genes.extend(data.get("genes", []))
         except Exception as e:
-            click.echo(f"  [warn] failed to load genes: {e}", err=True)
-    return []
+            click.echo(f"  [warn] failed to load profile genes: {e}", err=True)
+
+    # Shared genes (cross-profile)
+    shared_dir = DATA_DIR / "genes" / "shared"
+    if shared_dir.exists():
+        for sf in shared_dir.glob("*.json"):
+            try:
+                data = json.loads(sf.read_text())
+                shared = data.get("genes", [])
+                # Tag shared genes so we can distinguish them
+                for g in shared:
+                    g.setdefault("shared", True)
+                genes.extend(shared)
+            except Exception:
+                pass
+
+    return genes
 
 
 def _convert_sessions(sessions_dir: Path, profile: str, limit: int = 50) -> int:
@@ -161,6 +179,132 @@ def _validate_size(path: Path) -> tuple[bool, int]:
     content = path.read_text(encoding="utf-8")
     chars = len(content)
     return chars <= SKILL_SIZE_LIMIT, chars
+
+
+def _aflow_optimize(skill_path: Path, genes: list[dict], profile: str, skill: str) -> bool:
+    """
+    Phase 3: AFlow structural optimizer — reorders SKILL.md sections by LLM scoring.
+
+    1. Parse SKILL.md into section graph (parse_skill_to_graph)
+    2. Ask DeepSeek to score each top-level section 0-10 (given skill + gene context)
+    3. Reorder by descending score (highest-priority content first)
+    4. Render back to SKILL.md (render_graph_to_skill) in-place
+
+    Returns True if reordering was applied, False if skipped.
+    """
+    import sys as _sys
+    # Add code directory to path for aflow_adapter import
+    code_dir = Path(__file__).parent
+    if str(code_dir) not in _sys.path:
+        _sys.path.insert(0, str(code_dir))
+
+    try:
+        from aflow_adapter.parse_skill import parse_skill_to_graph
+        from aflow_adapter.render_skill import render_graph_to_skill, reorder_by_scores
+    except ImportError as e:
+        click.echo(f"  [aflow] import failed: {e}", err=True)
+        return False
+
+    api_key = os.environ.get("DEEPSEEK_API_KEY", "")
+    if not api_key:
+        click.echo("  [aflow] no DEEPSEEK_API_KEY — skipping section scoring", err=True)
+        return False
+
+    click.echo(f"\n  [aflow] Parsing sections from {skill_path.name}...")
+    graph = parse_skill_to_graph(skill_path)
+    top_nodes = [n for n in graph["nodes"] if n["level"] == 2]
+
+    if len(top_nodes) < 3:
+        click.echo(f"  [aflow] Only {len(top_nodes)} top-level sections — skipping reorder")
+        return False
+
+    click.echo(f"  [aflow] {len(top_nodes)} top-level sections to score")
+
+    # Build gene context for scoring prompt
+    gene_context = ""
+    if genes:
+        patterns = [g["content"] for g in genes if g.get("type") == "effective_pattern"][:3]
+        if patterns:
+            gene_context = "\n有效模式 (Gene):\n" + "\n".join(f"- {p}" for p in patterns)
+
+    # Build section list for LLM
+    section_list = ""
+    for i, n in enumerate(top_nodes):
+        first_line = n["content"].split("\n")[0][:80]
+        section_list += f"{i}: {first_line}\n"
+
+    prompt = f"""你是 Hermes skill 结构优化器。
+
+Skill: {profile}/{skill}
+{gene_context}
+
+以下是 SKILL.md 的顶层章节列表（按当前顺序）：
+{section_list}
+
+请为每个章节打分（0-10），评估标准：
+- 对 AI agent 执行任务的直接指导价值
+- 在实际对话中被调用的频率和重要性
+- 与 gene 中有效模式的相关性
+
+输出 JSON（只输出 JSON）：
+{{
+  "scores": [
+    {{"index": 0, "score": 8.5, "reason": "..."}},
+    {{"index": 1, "score": 6.0, "reason": "..."}}
+  ]
+}}
+"""
+
+    try:
+        resp = httpx.post(
+            "https://api.deepseek.com/v1/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "model": "deepseek-chat",
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.2,
+                "max_tokens": 800,
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        raw = resp.json()["choices"][0]["message"]["content"].strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        result = json.loads(raw)
+        scores_list = result.get("scores", [])
+    except Exception as e:
+        click.echo(f"  [aflow] LLM scoring failed: {e}", err=True)
+        return False
+
+    # Apply scores to graph nodes
+    score_map = {item["index"]: item["score"] for item in scores_list}
+    for n in graph["nodes"]:
+        if n["level"] == 2:
+            idx = top_nodes.index(n) if n in top_nodes else -1
+            if idx >= 0 and idx in score_map:
+                n["score"] = score_map[idx]
+
+    # Check if reordering would actually change anything
+    original_order = [n["id"] for n in top_nodes]
+    reorder_by_scores(graph)
+    new_order = [n["id"] for n in sorted(top_nodes, key=lambda x: x.get("priority", 999))]
+
+    if original_order == new_order:
+        click.echo("  [aflow] Sections already in optimal order — no reordering needed")
+        return False
+
+    click.echo(f"  [aflow] Reordering {len(top_nodes)} sections by score...")
+    for item in scores_list:
+        idx = item["index"]
+        if idx < len(top_nodes):
+            click.echo(f"    [{idx}] score={item['score']} — {top_nodes[idx]['title'][:50]}")
+
+    render_graph_to_skill(graph, skill_path)
+    click.echo(f"  [aflow] ✓ Sections reordered in {skill_path.name}")
+    return True
 
 
 def _write_metrics(run_dir: Path, baseline: float, best: float, duration: float,
@@ -456,6 +600,19 @@ def run(profile, skill, optimizer, iterations, model, eval_model, dry_run):
     import shutil
     shutil.copy2(evolved_source, run_dir / "evolved.md")
     shutil.copy2(original_skill, run_dir / "original.md")
+
+    # Phase 3: AFlow structural optimization (runs after GEPA, before HITL)
+    if "aflow" in optimizer:
+        evolved_in_rundir = run_dir / "evolved.md"
+        aflow_applied = _aflow_optimize(evolved_in_rundir, genes, profile, skill)
+        if aflow_applied:
+            # Re-validate size after reorder
+            ok, chars = _validate_size(evolved_in_rundir)
+            if not ok:
+                click.echo(f"  [aflow] Post-reorder size {chars} > {SKILL_SIZE_LIMIT} — reverting")
+                shutil.copy2(evolved_source, evolved_in_rundir)
+            else:
+                click.echo(f"  [aflow] Post-reorder: {chars} chars")
 
     # Extract scores from captured stdout
     # Pattern: "Average Metric: 6.55 / 18 (36.4%): 100%|..."

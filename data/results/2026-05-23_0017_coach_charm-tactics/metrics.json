@@ -1,0 +1,13 @@
+{
+  "run_id": "2026-05-23_0017_coach_charm-tactics",
+  "profile": "coach",
+  "skill": "charm-tactics",
+  "optimizer": "gepa",
+  "baseline": 0.3,
+  "best": 0.3,
+  "improvement_pct": 0.0,
+  "duration_seconds": 2383,
+  "gene_hits": 0,
+  "timestamp": "2026-05-23T07:56:44.233119+00:00",
+  "approved": false
+}

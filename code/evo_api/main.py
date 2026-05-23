@@ -60,9 +60,36 @@ class HitlDecision(BaseModel):
     reason: Optional[str] = None
 
 
+class ExtractRequest(BaseModel):
+    profile: str
+    skill: str
+    limit: int = 50
+    no_llm: bool = False
+
+
 # ---------------------------------------------------------------------------
 # Background runner
 # ---------------------------------------------------------------------------
+
+def _run_extract(task_id: str, req: ExtractRequest):
+    _tasks[task_id]["status"] = "running"
+    _tasks[task_id]["started_at"] = datetime.now(timezone.utc).isoformat()
+
+    cmd = [sys.executable, RUNNER, "extract",
+           "--profile", req.profile,
+           "--skill", req.skill,
+           "--limit", str(req.limit)]
+    if req.no_llm:
+        cmd.append("--no-llm")
+
+    env = {**os.environ}
+    result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+    _tasks[task_id]["returncode"] = result.returncode
+    _tasks[task_id]["stdout"] = result.stdout[-4000:] if result.stdout else ""
+    _tasks[task_id]["stderr"] = result.stderr[-2000:] if result.stderr else ""
+    _tasks[task_id]["finished_at"] = datetime.now(timezone.utc).isoformat()
+    _tasks[task_id]["status"] = "ok" if result.returncode == 0 else "error"
+
 
 def _run_evolution(task_id: str, req: EvolveRequest):
     _tasks[task_id]["status"] = "running"
@@ -122,6 +149,53 @@ async def status(task_id: str):
     if task_id not in _tasks:
         raise HTTPException(404, f"Task not found: {task_id}")
     return _tasks[task_id]
+
+
+@app.post("/extract", summary="Trigger gene extraction (async)")
+async def extract(req: ExtractRequest, background_tasks: BackgroundTasks):
+    if req.profile not in ("personal", "coach", "architect", "founder"):
+        raise HTTPException(400, f"Unknown profile: {req.profile}")
+
+    task_id = str(uuid.uuid4())[:8]
+    _tasks[task_id] = {
+        "task_id": task_id,
+        "profile": req.profile,
+        "skill": req.skill,
+        "action": "extract",
+        "status": "queued",
+        "queued_at": datetime.now(timezone.utc).isoformat(),
+    }
+    background_tasks.add_task(_run_extract, task_id, req)
+    return {"task_id": task_id, "status": "queued",
+            "message": f"Gene extraction queued for {req.profile}/{req.skill}"}
+
+
+@app.get("/genes/{profile}/{skill}", summary="Get gene file for a profile/skill")
+async def get_genes(profile: str, skill: str):
+    gene_file = DATA_DIR / "genes" / profile / f"{skill}.json"
+    if not gene_file.exists():
+        raise HTTPException(404, f"No gene file for {profile}/{skill}")
+    return json.loads(gene_file.read_text())
+
+
+@app.get("/genes/shared", summary="List all shared (cross-profile) gene files")
+async def get_shared_genes():
+    shared_dir = DATA_DIR / "genes" / "shared"
+    if not shared_dir.exists():
+        return {"shared": []}
+    result = []
+    for f in sorted(shared_dir.glob("*.json")):
+        try:
+            data = json.loads(f.read_text())
+            result.append({
+                "topic": data.get("topic", f.stem),
+                "gene_count": len(data.get("genes", [])),
+                "source_profiles": data.get("source_profiles", []),
+                "updated_at": data.get("updated_at"),
+            })
+        except Exception:
+            pass
+    return {"shared": result}
 
 
 @app.get("/targets", summary="List evolution targets")
