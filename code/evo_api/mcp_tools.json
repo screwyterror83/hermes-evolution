@@ -100,6 +100,52 @@
         "type": "object",
         "properties": {}
       }
+    },
+    {
+      "name": "extract_genes",
+      "description": "从 sessions 中提取 Gene（有效/无效模式）并存入 data/genes/。Phase 2 核心功能。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "profile": {
+            "type": "string",
+            "enum": ["personal", "coach", "architect", "founder"],
+            "description": "Hermes profile 名称"
+          },
+          "skill": {
+            "type": "string",
+            "description": "Skill 目录名"
+          },
+          "limit": {
+            "type": "integer",
+            "default": 50,
+            "description": "扫描最近 N 个 session"
+          },
+          "no_llm": {
+            "type": "boolean",
+            "default": false,
+            "description": "跳过 LLM 提取（仅扫描统计）"
+          }
+        },
+        "required": ["profile", "skill"]
+      }
+    },
+    {
+      "name": "list_genes",
+      "description": "查看某 profile/skill 已提取的 Gene 列表",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "profile": {
+            "type": "string",
+            "enum": ["personal", "coach", "architect", "founder"]
+          },
+          "skill": {
+            "type": "string"
+          }
+        },
+        "required": ["profile", "skill"]
+      }
     }
   ]
 }
