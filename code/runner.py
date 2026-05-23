@@ -341,64 +341,53 @@ def run(profile, skill, optimizer, iterations, model, eval_model, dry_run):
     run_dir = DATA_DIR / "results" / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    # Patch evolve_skill.py:
-    #   1. GEPA metric wrapper: GEPA requires 5-arg metric (gold,pred,trace,pred_name,pred_trace)
-    #      but skill_fitness_metric only has 3. Wrap it before the try block.
-    #   2. GEPA parameter name: max_steps → max_full_evals if needed.
+    # Patch evolve_skill.py section 5 (GEPA optimizer block) using anchor replacement.
+    # Rewrites everything from "# ── 5. Run GEPA" to "elapsed = time.time()" with:
+    #   - gepa_metric wrapper (5-arg, required by dspy.GEPA)
+    #   - reflection_lm (required by dspy.GEPA)
+    #   - No MIPROv2 fallback (fail loudly if GEPA breaks)
     evolve_script = SELF_EVO_DIR / "evolution" / "skills" / "evolve_skill.py"
     if evolve_script.exists():
         content = evolve_script.read_text()
-        # Patch 1: inject gepa_metric wrapper + remove MIPROv2 fallback
-        # Replace the entire try/except block with direct GEPA call (no fallback).
-        OLD_BLOCK = (
-            "    try:\n"
-            "        optimizer = dspy.GEPA(\n"
-            "            metric=skill_fitness_metric,\n"
-            "            max_full_evals=iterations,\n"
-            "        )\n"
-            "\n"
-            "        optimized_module = optimizer.compile(\n"
-            "            baseline_module,\n"
-            "            trainset=trainset,\n"
-            "            valset=valset,\n"
-            "        )\n"
-            "    except Exception as e:\n"
-            "        # Fall back to MIPROv2 if GEPA isn't available in this DSPy version\n"
-            "        console.print(f\"[yellow]GEPA not available ({e}), falling back to MIPROv2[/yellow]\")\n"
-            "        optimizer = dspy.MIPROv2(\n"
-            "            metric=skill_fitness_metric,\n"
-            "            auto=\"light\",\n"
-            "        )\n"
-            "        optimized_module = optimizer.compile(\n"
-            "            baseline_module,\n"
-            "            trainset=trainset,\n"
-            "        )"
-        )
-        NEW_BLOCK = (
-            "    # GEPA requires 5-arg metric; wrap skill_fitness_metric\n"
-            "    def gepa_metric(gold, pred, trace=None, pred_name=None, pred_trace=None):\n"
-            "        return skill_fitness_metric(gold, pred, trace)\n"
-            "\n"
-            "    optimizer = dspy.GEPA(\n"
-            "        metric=gepa_metric,\n"
-            "        max_full_evals=iterations,\n"
-            "    )\n"
-            "\n"
-            "    optimized_module = optimizer.compile(\n"
-            "        baseline_module,\n"
-            "        trainset=trainset,\n"
-            "        valset=valset,\n"
-            "    )"
-        )
-        patched = content.replace(OLD_BLOCK, NEW_BLOCK)
-        # Patch 2: max_steps → max_full_evals if needed (older evolve_skill.py)
-        if gepa_param == "max_full_evals":
-            patched = patched.replace("max_steps=iterations", "max_full_evals=iterations")
-        if patched != content:
+        START_ANCHOR = "    # ── 5. Run GEPA optimization"
+        END_ANCHOR   = "\n    elapsed = time.time() - start_time"
+        si = content.find(START_ANCHOR)
+        ei = content.find(END_ANCHOR, si)
+        if si != -1 and ei != -1 and "reflection_lm" not in content[si:ei]:
+            new_section = (
+                "    # ── 5. Run GEPA optimization ──────────────────────────────────────────\n"
+                "    console.print(f\"\\n[bold cyan]Running GEPA optimization ({iterations} iterations)...[/bold cyan]\\n\")\n"
+                "\n"
+                "    start_time = time.time()\n"
+                "\n"
+                "    def gepa_metric(gold, pred, trace=None, pred_name=None, pred_trace=None):\n"
+                "        return skill_fitness_metric(gold, pred, trace)\n"
+                "\n"
+                "    reflection_lm = dspy.LM(\n"
+                "        model=optimizer_model,\n"
+                "        temperature=1.0,\n"
+                "        max_tokens=16000,\n"
+                "    )\n"
+                "\n"
+                "    optimizer = dspy.GEPA(\n"
+                "        metric=gepa_metric,\n"
+                "        max_full_evals=iterations,\n"
+                "        reflection_lm=reflection_lm,\n"
+                "    )\n"
+                "\n"
+                "    optimized_module = optimizer.compile(\n"
+                "        baseline_module,\n"
+                "        trainset=trainset,\n"
+                "        valset=valset,\n"
+                "    )"
+            )
+            patched = content[:si] + new_section + END_ANCHOR + content[ei + len(END_ANCHOR):]
             evolve_script.write_text(patched)
-            click.echo("  GEPA patch applied (5-arg metric wrapper, no MIPROv2 fallback)")
+            click.echo("  GEPA patch applied (reflection_lm + 5-arg metric, no MIPROv2 fallback)")
+        elif si != -1 and "reflection_lm" in content[si:ei]:
+            click.echo("  GEPA patch already applied")
         else:
-            click.echo("  [warn] GEPA patch did not match — evolve_skill.py may have changed")
+            click.echo("  [warn] GEPA patch anchors not found — check evolve_skill.py")
 
     # Patch EvolutionConfig.max_skill_size to 25000
     # (entrypoint.sh git pull resets it to 15000 each run)
