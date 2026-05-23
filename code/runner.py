@@ -139,6 +139,30 @@ def _write_metrics(run_dir: Path, baseline: float, best: float, duration: float,
     return metrics
 
 
+def _git_push_data(label: str = "data: auto-push evolution results"):
+    """Commit and double-push data layer changes from the mounted repo root."""
+    repo = Path("/repo")
+    if not (repo / ".git").exists():
+        click.echo("  [warn] /repo not a git repo — skipping data push", err=True)
+        return
+    try:
+        # Ensure git identity
+        subprocess.run(["git", "-C", str(repo), "config", "user.email", "evo-api@hermes"], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(repo), "config", "user.name", "hermes-evo"], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(repo), "add", "data/"], check=True, capture_output=True)
+        # Only commit if there are staged changes
+        staged = subprocess.run(["git", "-C", str(repo), "diff", "--staged", "--quiet"], capture_output=True)
+        if staged.returncode == 0:
+            click.echo("  [info] data layer unchanged, skip push")
+            return
+        subprocess.run(["git", "-C", str(repo), "commit", "-m", label], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(repo), "push", "gitea", "main"], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(repo), "push", "github", "main"], check=True, capture_output=True)
+        click.echo("  ✓ data layer pushed → gitea + github")
+    except subprocess.CalledProcessError as e:
+        click.echo(f"  [warn] data push failed: {e.stderr.decode()[:200] if e.stderr else e}", err=True)
+
+
 def _notify_hitl(metrics: dict, diff_url: str = ""):
     """Push HITL notification via Hermes profile gateway (one-shot cron job)."""
     improvement = metrics["improvement_pct"]
@@ -333,6 +357,9 @@ def run(profile, skill, optimizer, iterations, model, eval_model, dry_run):
 
     # HITL notification
     _notify_hitl(metrics)
+
+    # Auto-push data layer
+    _git_push_data(f"data: evolution run {run_id}")
 
     click.echo(f"\n  Run ID: {run_id}")
     click.echo("  Reply 'approve' or 'reject' to process via HITL.")
@@ -661,6 +688,9 @@ def approve(run_id, profile, skill):
 
     click.echo(f"  Backup saved: {backup.name}")
     click.echo("\n  Skill is live (volume-mounted, no restart needed).")
+
+    # Auto-push data layer (approved metrics + hitl-queue update)
+    _git_push_data(f"data: approve {run_id} {profile}/{skill}")
 
 
 if __name__ == "__main__":
