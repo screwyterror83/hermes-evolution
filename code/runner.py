@@ -23,7 +23,22 @@ import yaml
 DATA_DIR = Path(os.environ.get("HERMES_EVO_DATA", "/vol2/hermes-evolution/data"))
 PROFILES_DIR = Path(os.environ.get("HERMES_PROFILES_DIR", "/vol1/hermes-profiles"))
 SELF_EVO_DIR = Path("/opt/self-evolution")
-HERMES_API = os.environ.get("HERMES_API_URL", "http://hermes:8000")
+
+# Hermes API — all profiles share same key, accessible via hermes-net container names
+_HERMES_KEY = os.environ.get("HERMES_API_KEY", "51f149aa975cb5e594d329af954caa4c5dfcecae2e2a6234")
+HERMES_APIS = {
+    "personal": os.environ.get("HERMES_API_PERSONAL", "http://hermes:8643"),
+    "coach":    os.environ.get("HERMES_API_COACH",    "http://hermes-coach:8643"),
+    "architect":os.environ.get("HERMES_API_ARCHITECT","http://hermes-architect:8643"),
+    "founder":  os.environ.get("HERMES_API_FOUNDER",  "http://hermes-founder:8643"),
+}
+# Default deliver channel per profile (used for HITL notifications)
+HERMES_DELIVER = {
+    "personal": "telegram",
+    "coach":    "telegram",
+    "architect":"feishu",
+    "founder":  "telegram",
+}
 
 SKILL_SIZE_LIMIT = 15000  # chars
 
@@ -120,37 +135,55 @@ def _write_metrics(run_dir: Path, baseline: float, best: float, duration: float,
 
 
 def _notify_hitl(metrics: dict, diff_url: str = ""):
-    """Push HITL notification to Hermes platform API."""
+    """Push HITL notification via Hermes profile gateway (one-shot cron job)."""
     improvement = metrics["improvement_pct"]
     sign = "+" if improvement >= 0 else ""
+    profile = metrics["profile"]
+    run_id = metrics["run_id"]
+
     msg = (
-        f"🧬 进化完成 | {metrics['profile']}/{metrics['skill']}\n"
+        f"🧬 进化完成 | {profile}/{metrics['skill']}\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"基线: {metrics['baseline']:.1f} → 最佳: {metrics['best']:.1f} ({sign}{improvement:.1f}%)\n"
         f"优化器: {metrics['optimizer']} | 耗时: {metrics['duration_seconds']//60}min\n"
         f"Gene命中: {metrics['gene_hits']}条\n\n"
-        f"回复 approve 或 reject 来处理此次进化。\n"
-        f"Run ID: {metrics['run_id']}"
+        f"回复 approve 部署，或 reject 拒绝。\n"
+        f"Run ID: {run_id}\n"
+        f"curl -X POST http://hermes-evo-api:8621/hitl/approve "
+        f"-d '{{\"run_id\":\"{run_id}\",\"profile\":\"{profile}\",\"skill\":\"{metrics['skill']}\"}}"
     )
 
-    # Write to hitl-queue for evo-api to pick up
+    # Write to hitl-queue
     queue_entry = {**metrics, "message": msg, "status": "pending"}
-    queue_file = DATA_DIR / "hitl-queue" / f"{metrics['run_id']}.json"
+    queue_file = DATA_DIR / "hitl-queue" / f"{run_id}.json"
+    queue_file.parent.mkdir(parents=True, exist_ok=True)
     queue_file.write_text(json.dumps(queue_entry, indent=2, ensure_ascii=False))
 
-    # Try to notify via Hermes API
+    # Push via Hermes gateway — create one-shot cron job (repeat=1, @now)
+    api_url = HERMES_APIS.get(profile, HERMES_APIS["personal"])
+    deliver = HERMES_DELIVER.get(profile, "telegram")
+
     try:
         resp = httpx.post(
-            f"{HERMES_API}/internal/notify",
-            json={"message": msg, "deliver": "all"},
+            f"{api_url}/api/jobs",
+            headers={"Authorization": f"Bearer {_HERMES_KEY}",
+                     "Content-Type": "application/json"},
+            json={
+                "name": f"[evo-hitl] {profile}/{metrics['skill']} {run_id[:8]}",
+                "schedule": "@now",
+                "prompt": msg,
+                "deliver": deliver,
+                "repeat": 1,
+            },
             timeout=10,
         )
-        if resp.status_code == 200:
-            click.echo("  ✓ HITL notification sent")
+        if resp.status_code in (200, 201):
+            job_id = resp.json().get("job", {}).get("id", "?")
+            click.echo(f"  ✓ HITL notification queued → {deliver} (job {job_id})")
         else:
-            click.echo(f"  [warn] HITL notify returned {resp.status_code}", err=True)
+            click.echo(f"  [warn] HITL job create returned {resp.status_code}: {resp.text[:100]}", err=True)
     except Exception as e:
-        click.echo(f"  [warn] HITL notify failed: {e} (queued for retry)", err=True)
+        click.echo(f"  [warn] HITL notify failed: {e} — message saved to hitl-queue", err=True)
 
 
 # ---------------------------------------------------------------------------
@@ -300,14 +333,200 @@ def run(profile, skill, optimizer, iterations, model, eval_model, dry_run):
     click.echo("  Reply 'approve' or 'reject' to process via HITL.")
 
 
+def _collect_session_fragments(sessions_dir: Path, skill: str, limit: int) -> list[dict]:
+    """Scan recent sessions and collect exchanges relevant to the skill."""
+    skill_keywords = [skill.replace("-", " "), skill.replace("-", "")]
+    session_files = sorted(sessions_dir.glob("*.jsonl"), key=os.path.getmtime, reverse=True)[:limit]
+    fragments = []
+    for sf in session_files:
+        try:
+            messages = []
+            with open(sf, errors="replace") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        d = json.loads(line)
+                        role = d.get("role", "")
+                        if role not in ("user", "assistant"):
+                            continue
+                        content = d.get("content", "")
+                        if isinstance(content, list):
+                            content = " ".join(
+                                c.get("text", "") if isinstance(c, dict) else str(c)
+                                for c in content
+                            )
+                        messages.append({"role": role, "content": content})
+                    except Exception:
+                        continue
+            # Keep exchanges where any message mentions the skill
+            if any(
+                any(kw.lower() in m["content"].lower() for kw in skill_keywords)
+                for m in messages
+            ):
+                # Collect up to 6 messages around skill mentions
+                for i, m in enumerate(messages):
+                    if any(kw.lower() in m["content"].lower() for kw in skill_keywords):
+                        start = max(0, i - 1)
+                        end = min(len(messages), i + 3)
+                        for msg in messages[start:end]:
+                            fragments.append({
+                                "session": sf.stem,
+                                "role": msg["role"],
+                                "content": msg["content"][:600],
+                            })
+        except Exception:
+            continue
+    # Deduplicate
+    seen = set()
+    unique = []
+    for f in fragments:
+        key = f["session"] + f["content"][:50]
+        if key not in seen:
+            seen.add(key)
+            unique.append(f)
+    return unique
+
+
+def _llm_extract_genes(fragments: list[dict], profile: str, skill: str,
+                        existing_genes: list[dict]) -> dict:
+    """Call DeepSeek to extract structured genes from session fragments."""
+    api_key = os.environ.get("DEEPSEEK_API_KEY", "")
+    if not api_key or not fragments:
+        return {"genes": existing_genes, "kg_triples": []}
+
+    # Build context from fragments (cap at ~4000 chars)
+    context_parts = []
+    total = 0
+    for f in fragments:
+        line = f"[{f['role']}] {f['content']}\n"
+        if total + len(line) > 4000:
+            break
+        context_parts.append(line)
+        total += len(line)
+    context = "".join(context_parts)
+
+    existing_ids = {g["id"] for g in existing_genes}
+    next_id = len(existing_genes) + 1
+
+    prompt = f"""你是 Hermes skill 进化系统的 Gene 提取器。
+
+分析以下来自 Hermes profile "{profile}" 的 "{skill}" skill 相关对话片段，提取结构化 Gene。
+
+对话片段：
+{context}
+
+请提取：
+1. effective_pattern：有效的策略/方法（用户或 agent 的行为产生好结果）
+2. anti_pattern：无效/有害的模式（导致失败或低质量结果）
+3. kg_triple：知识图谱三元组（subject-predicate-object 格式）
+
+输出 JSON 格式（只输出 JSON，不要其他文字）：
+{{
+  "new_genes": [
+    {{"id": "g{next_id:03d}", "type": "effective_pattern", "content": "...", "strength": 0.8, "evidence_sessions": ["session_id"]}},
+    {{"id": "g{next_id+1:03d}", "type": "anti_pattern", "content": "...", "strength": 0.7, "evidence_sessions": ["session_id"]}}
+  ],
+  "kg_triples": [
+    {{"subject": "...", "predicate": "...", "object_": "..."}}
+  ]
+}}
+
+要求：
+- content 简洁具体，不超过 80 字
+- 只提取有实质证据的模式，不要编造
+- 如果没有明显模式，返回 {{"new_genes": [], "kg_triples": []}}
+"""
+
+    try:
+        resp = httpx.post(
+            "https://api.deepseek.com/v1/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "model": "deepseek-chat",
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.3,
+                "max_tokens": 1000,
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        raw = resp.json()["choices"][0]["message"]["content"].strip()
+        # Strip markdown code block if present
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        result = json.loads(raw)
+        new_genes = result.get("new_genes", [])
+        kg_triples = result.get("kg_triples", [])
+        # Merge with existing, skip duplicate ids
+        all_genes = list(existing_genes)
+        for g in new_genes:
+            if g["id"] not in existing_ids:
+                all_genes.append(g)
+        return {"genes": all_genes, "kg_triples": kg_triples}
+    except Exception as e:
+        click.echo(f"  [warn] LLM extraction failed: {e}", err=True)
+        return {"genes": existing_genes, "kg_triples": []}
+
+
+def _update_references_markdown(references_dir: Path, genes: list[dict],
+                                  kg_triples: list[dict], session_fragments: list[dict]):
+    """Append new genes to field-patterns.md / anti-patterns.md / session-highlights.md."""
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    # field-patterns.md — effective patterns
+    effective = [g for g in genes if g.get("type") == "effective_pattern"]
+    if effective:
+        fp = references_dir / "field-patterns.md"
+        content = fp.read_text(encoding="utf-8") if fp.exists() else "# Field Patterns\n\n<!-- cron-append-start -->\n<!-- cron-append-end -->\n"
+        new_entries = ""
+        for g in effective:
+            marker = f"<!-- gene: {g['id']} | strength: {g.get('strength',0)} | type: effective | updated: {today} -->"
+            entry = f"\n## {g['content'][:50]}\n{marker}\n{g['content']}\n"
+            if g["id"] not in content:
+                new_entries += entry
+        if new_entries:
+            content = content.replace("<!-- cron-append-end -->", new_entries + "<!-- cron-append-end -->")
+            fp.write_text(content, encoding="utf-8")
+
+    # anti-patterns.md — anti patterns
+    anti = [g for g in genes if g.get("type") == "anti_pattern"]
+    if anti:
+        ap = references_dir / "anti-patterns.md"
+        content = ap.read_text(encoding="utf-8") if ap.exists() else "# Anti-Patterns\n\n<!-- cron-append-start -->\n<!-- cron-append-end -->\n"
+        new_entries = ""
+        for g in anti:
+            marker = f"<!-- gene: {g['id']} | strength: {g.get('strength',0)} | type: anti | updated: {today} -->"
+            entry = f"\n## {g['content'][:50]}\n{marker}\n{g['content']}\n"
+            if g["id"] not in content:
+                new_entries += entry
+        if new_entries:
+            content = content.replace("<!-- cron-append-end -->", new_entries + "<!-- cron-append-end -->")
+            ap.write_text(content, encoding="utf-8")
+
+    # session-highlights.md — top fragments
+    sh = references_dir / "session-highlights.md"
+    content = sh.read_text(encoding="utf-8") if sh.exists() else "# Session Highlights\n\n<!-- cron-append-start -->\n<!-- cron-append-end -->\n"
+    highlights = session_fragments[:3]  # top 3 fragments
+    if highlights:
+        new_entries = f"\n## 摘录 ({today})\n"
+        for h in highlights:
+            new_entries += f"\n**[{h['role']}]** {h['content'][:200]}...\n"
+        if today not in content:
+            content = content.replace("<!-- cron-append-end -->", new_entries + "<!-- cron-append-end -->")
+            sh.write_text(content, encoding="utf-8")
+
+
 @cli.command()
 @click.option("--profile", required=True, type=click.Choice(["personal", "coach", "architect", "founder"]))
 @click.option("--skill", required=True, help="Skill name to extract genes from")
 @click.option("--limit", default=50, show_default=True, help="Max sessions to scan")
-def extract(profile, skill, limit):
-    """Extract GEP Genes from sessions into data/genes/ and references/."""
-    import json
-
+@click.option("--no-llm", is_flag=True, help="Skip LLM extraction (scan only, update counts)")
+def extract(profile, skill, limit, no_llm):
+    """Extract GEP Genes from sessions into data/genes/ and references/ (LLM-powered)."""
     profile_dir = PROFILES_DIR / profile
     sessions_dir = profile_dir / "sessions"
     skill_dir = profile_dir / "skills" / skill
@@ -321,41 +540,11 @@ def extract(profile, skill, limit):
 
     references_dir.mkdir(exist_ok=True)
 
-    # Scan recent sessions
-    session_files = sorted(sessions_dir.glob("*.jsonl"), key=os.path.getmtime, reverse=True)[:limit]
-    click.echo(f"  Scanning {len(session_files)} sessions...")
-
-    # Collect messages mentioning the skill
-    relevant_messages = []
-    skill_keywords = [skill.replace("-", " "), skill]
-
-    for sf in session_files:
-        try:
-            with open(sf, errors="replace") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        d = json.loads(line)
-                        content = d.get("content", "")
-                        if isinstance(content, list):
-                            content = " ".join(
-                                c.get("text", "") if isinstance(c, dict) else str(c)
-                                for c in content
-                            )
-                        if any(kw.lower() in content.lower() for kw in skill_keywords):
-                            relevant_messages.append({
-                                "session": sf.stem,
-                                "role": d.get("role", ""),
-                                "content": content[:500],
-                            })
-                    except Exception:
-                        continue
-        except Exception:
-            continue
-
-    click.echo(f"  Found {len(relevant_messages)} relevant message fragments")
+    # Scan sessions
+    session_files = sorted(sessions_dir.glob("*.jsonl"), key=os.path.getmtime, reverse=True)
+    click.echo(f"  Total sessions: {len(session_files)}, scanning last {limit}")
+    fragments = _collect_session_fragments(sessions_dir, skill, limit)
+    click.echo(f"  Relevant fragments: {len(fragments)} from {len(set(f['session'] for f in fragments))} sessions")
 
     # Load existing gene file
     gene_file = DATA_DIR / "genes" / profile / f"{skill}.json"
@@ -365,44 +554,57 @@ def extract(profile, skill, limit):
             existing = json.loads(gene_file.read_text())
         except Exception:
             pass
+    existing_genes = existing.get("genes", [])
+    existing_triples = existing.get("kg_triples", [])
 
-    genes = existing.get("genes", [])
-    kg_triples = existing.get("kg_triples", [])
+    # LLM extraction
+    if no_llm or not fragments:
+        new_data = {"genes": existing_genes, "kg_triples": existing_triples}
+        if no_llm:
+            click.echo("  [--no-llm] Skipping LLM extraction")
+        else:
+            click.echo("  No relevant fragments found, skipping LLM")
+    else:
+        click.echo(f"  Running LLM extraction (deepseek-chat)...")
+        new_data = _llm_extract_genes(fragments, profile, skill, existing_genes)
+        new_count = len(new_data["genes"]) - len(existing_genes)
+        click.echo(f"  ✓ Extracted: {new_count} new genes, {len(new_data['kg_triples'])} KG triples")
 
-    # Stub: write placeholder gene file for Phase 1
-    # Phase 2 will wire in actual LLM-based extraction
+    # Write gene file
     gene_data = {
         "profile": profile,
         "skill": skill,
         "updated_at": datetime.now(timezone.utc).date().isoformat(),
-        "session_count_scanned": len(session_files),
-        "relevant_fragments": len(relevant_messages),
-        "genes": genes,
-        "kg_triples": kg_triples,
+        "session_count_scanned": len(session_files[:limit]),
+        "relevant_fragments": len(fragments),
+        "genes": new_data["genes"],
+        "kg_triples": new_data.get("kg_triples", existing_triples),
     }
-
     gene_file.parent.mkdir(parents=True, exist_ok=True)
     gene_file.write_text(json.dumps(gene_data, indent=2, ensure_ascii=False))
-    click.echo(f"  ✓ Gene file written: {gene_file}")
+    click.echo(f"  ✓ Gene file: {len(gene_data['genes'])} genes → {gene_file}")
 
-    # Ensure references/ structure exists with markers
-    for fname in ["field-patterns.md", "anti-patterns.md", "session-highlights.md"]:
-        ref_file = references_dir / fname
-        if not ref_file.exists():
-            ref_file.write_text(
-                f"# {fname.replace('-', ' ').replace('.md', '').title()}\n\n"
-                f"<!-- cron-append-start -->\n"
-                f"<!-- cron-append-end -->\n",
-                encoding="utf-8",
-            )
-            click.echo(f"  ✓ Created {ref_file.name}")
+    # Ensure standard references/ files exist
+    for fname, default in [
+        ("field-patterns.md", "# Field Patterns\n\n<!-- cron-append-start -->\n<!-- cron-append-end -->\n"),
+        ("anti-patterns.md", "# Anti-Patterns\n\n<!-- cron-append-start -->\n<!-- cron-append-end -->\n"),
+        ("session-highlights.md", "# Session Highlights\n\n<!-- cron-append-start -->\n<!-- cron-append-end -->\n"),
+    ]:
+        fpath = references_dir / fname
+        if not fpath.exists():
+            fpath.write_text(default, encoding="utf-8")
 
-    # Ensure .genes.json symlink/copy in references/
+    # Update markdown references
+    _update_references_markdown(references_dir, new_data["genes"],
+                                 new_data.get("kg_triples", []), fragments)
+    click.echo("  ✓ references/ markdown updated")
+
+    # Sync .genes.json
     genes_ref = references_dir / ".genes.json"
     genes_ref.write_text(gene_file.read_text(), encoding="utf-8")
-    click.echo(f"  ✓ Synced .genes.json to references/")
+    click.echo("  ✓ .genes.json synced to references/")
 
-    click.echo(f"\n  Done. Next: run Phase 2 LLM extraction to populate genes[].")
+    click.echo(f"\n  Done. Total genes: {len(gene_data['genes'])}")
 
 
 @cli.command()
