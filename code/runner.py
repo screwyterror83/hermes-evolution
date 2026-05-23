@@ -232,13 +232,13 @@ def _notify_hitl(metrics: dict, diff_url: str = ""):
     _skill = metrics['skill']
 
     msg = (
-        f"使用 hitl-review skill，把以下进化结果通知发给我，并在末尾加上选项提示：\n\n"
         f"🧬 进化完成 | {profile}/{_skill}\n"
         f"基线: {metrics['baseline']:.3f} → 最佳: {metrics['best']:.3f} ({sign}{improvement:.1f}%)\n"
         f"优化器: {metrics['optimizer']} | 耗时: {metrics['duration_seconds']//60}min\n"
-        f"Gene命中: {metrics['gene_hits']}条\n"
-        f"Run ID: {run_id}\n\n"
-        f"回复 /approve 部署，/reject 丢弃。"
+        f"Gene命中: {metrics['gene_hits']}条\n\n"
+        f"Run ID: {run_id}\n"
+        f"批准: POST http://192.168.0.154:8621/hitl/approve  body: {{\"run_id\":\"{run_id}\",\"profile\":\"{profile}\",\"skill\":\"{_skill}\"}}\n"
+        f"拒绝: POST http://192.168.0.154:8621/hitl/reject   body: {{\"run_id\":\"{run_id}\",\"profile\":\"{profile}\",\"skill\":\"{_skill}\"}}"
     )
 
     # Write to hitl-queue
