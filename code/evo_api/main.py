@@ -96,7 +96,7 @@ def _run_evolution(task_id: str, req: EvolveRequest):
 
 @app.post("/evolve", summary="Trigger skill evolution")
 async def evolve(req: EvolveRequest, background_tasks: BackgroundTasks):
-    if req.profile not in ("coach", "architect", "founder"):
+    if req.profile not in ("personal", "coach", "architect", "founder"):
         raise HTTPException(400, f"Unknown profile: {req.profile}")
 
     skill_path = PROFILES_DIR / req.profile / "skills" / req.skill / "SKILL.md"

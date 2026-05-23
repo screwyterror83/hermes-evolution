@@ -1,14 +1,43 @@
 targets:
+  # ── personal (default 小爱) ──────────────────────────────────────
+  # charm-coach 不纳入 — 与 coach/charm-tactics 重叠
+  - profile: personal
+    skill: tech-architect
+    auto: false
+    optimizer: gepa
+    iterations: 10
+    min_improvement_pct: 2.0
+    hitl_required: true
+    notes: "Shared tech-architect skill in personal profile. Manual trigger."
+
+  - profile: personal
+    skill: research
+    auto: false
+    optimizer: gepa
+    iterations: 10
+    min_improvement_pct: 2.0
+    hitl_required: true
+
+  - profile: personal
+    skill: knowledge
+    auto: false
+    optimizer: gepa
+    iterations: 10
+    min_improvement_pct: 2.0
+    hitl_required: true
+
+  # ── coach ────────────────────────────────────────────────────────
   - profile: coach
     skill: charm-tactics
     auto: true
     schedule: "0 2 * * 1"        # every Monday 2AM
-    optimizer: gepa               # gepa+aflow when Phase 3 ready
+    optimizer: gepa
     iterations: 10
     min_improvement_pct: 2.0
     hitl_required: true
     notes: "Primary coaching skill. Baseline 30.76, best 38.74 (2026-05-22)."
 
+  # ── architect ───────────────────────────────────────────────────
   - profile: architect
     skill: tech-architect
     auto: true
@@ -17,16 +46,57 @@ targets:
     iterations: 10
     min_improvement_pct: 2.0
     hitl_required: true
-    notes: "Technical architecture skill. First evolution pending."
+    notes: "Core architect skill. First evolution pending."
 
-  - profile: founder
-    skill: business-strategy
-    auto: false                   # manual trigger only
+  - profile: architect
+    skill: software-development
+    auto: false
     optimizer: gepa
     iterations: 10
     min_improvement_pct: 2.0
     hitl_required: true
-    notes: "Infrequently used. Promote to auto when session count > 20/30d."
+
+  - profile: architect
+    skill: devops
+    auto: false
+    optimizer: gepa
+    iterations: 10
+    min_improvement_pct: 2.0
+    hitl_required: true
+
+  # ── founder ─────────────────────────────────────────────────────
+  - profile: founder
+    skill: business
+    auto: true
+    schedule: "0 4 * * 1"        # every Monday 4AM
+    optimizer: gepa
+    iterations: 10
+    min_improvement_pct: 2.0
+    hitl_required: true
+
+  - profile: founder
+    skill: communication
+    auto: false
+    optimizer: gepa
+    iterations: 10
+    min_improvement_pct: 2.0
+    hitl_required: true
+
+  - profile: founder
+    skill: pitch-deck
+    auto: false
+    optimizer: gepa
+    iterations: 10
+    min_improvement_pct: 2.0
+    hitl_required: true
+
+  - profile: founder
+    skill: finance
+    auto: false
+    optimizer: gepa
+    iterations: 10
+    min_improvement_pct: 2.0
+    hitl_required: true
 
 # Usage frequency upgrade threshold (sessions in last 30 days)
 auto_promote_threshold: 20

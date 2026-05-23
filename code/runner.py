@@ -164,7 +164,7 @@ def cli():
 
 
 @cli.command()
-@click.option("--profile", required=True, type=click.Choice(["coach", "architect", "founder"]),
+@click.option("--profile", required=True, type=click.Choice(["personal", "coach", "architect", "founder"]),
               help="Hermes profile to evolve")
 @click.option("--skill", required=True, help="Skill name (directory under profile/skills/)")
 @click.option("--optimizer", default="gepa", show_default=True,
@@ -183,6 +183,7 @@ def run(profile, skill, optimizer, iterations, model, eval_model, dry_run):
 
     click.echo(f"\n🧬 Hermes Evolution | {profile}/{skill}")
     click.echo(f"   optimizer={optimizer} | iterations={iterations} | model={model}")
+    click.echo(f"   profile_dir={profile_dir}")
 
     # Validate paths
     if not profile_dir.exists():
@@ -300,7 +301,7 @@ def run(profile, skill, optimizer, iterations, model, eval_model, dry_run):
 
 
 @cli.command()
-@click.option("--profile", required=True, type=click.Choice(["coach", "architect", "founder"]))
+@click.option("--profile", required=True, type=click.Choice(["personal", "coach", "architect", "founder"]))
 @click.option("--skill", required=True, help="Skill name to extract genes from")
 @click.option("--limit", default=50, show_default=True, help="Max sessions to scan")
 def extract(profile, skill, limit):
@@ -406,7 +407,7 @@ def extract(profile, skill, limit):
 
 @cli.command()
 @click.argument("run_id")
-@click.option("--profile", required=True, type=click.Choice(["coach", "architect", "founder"]))
+@click.option("--profile", required=True, type=click.Choice(["personal", "coach", "architect", "founder"]))
 @click.option("--skill", required=True)
 def approve(run_id, profile, skill):
     """Deploy an approved evolution result to the live SKILL.md."""

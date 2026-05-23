@@ -8,7 +8,7 @@
         "properties": {
           "profile": {
             "type": "string",
-            "enum": ["coach", "architect", "founder"],
+            "enum": ["personal", "coach", "architect", "founder"],
             "description": "Hermes profile 名称"
           },
           "skill": {
@@ -60,7 +60,7 @@
           },
           "profile": {
             "type": "string",
-            "enum": ["coach", "architect", "founder"]
+            "enum": ["personal", "coach", "architect", "founder"]
           },
           "skill": {
             "type": "string"
@@ -80,7 +80,7 @@
           },
           "profile": {
             "type": "string",
-            "enum": ["coach", "architect", "founder"]
+            "enum": ["personal", "coach", "architect", "founder"]
           },
           "skill": {
             "type": "string"
