@@ -155,31 +155,63 @@ async def latest_result(profile: str, skill: str):
     }
 
 
-@app.post("/hitl/approve", summary="Deploy approved evolution")
-async def hitl_approve(decision: HitlDecision):
+def _do_approve(run_id: str, profile: str, skill: str) -> dict:
+    """Shared approve logic used by both POST and GET endpoints."""
     cmd = [
         sys.executable, RUNNER, "approve",
-        decision.run_id,
-        "--profile", decision.profile,
-        "--skill", decision.skill,
+        run_id, "--profile", profile, "--skill", skill,
     ]
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         raise HTTPException(500, result.stderr)
-    return {"status": "approved", "run_id": decision.run_id, "output": result.stdout}
+    return {"status": "approved", "run_id": run_id, "output": result.stdout}
+
+
+@app.post("/hitl/approve", summary="Deploy approved evolution")
+async def hitl_approve(decision: HitlDecision):
+    return _do_approve(decision.run_id, decision.profile, decision.skill)
+
+
+@app.get("/hitl/approve", summary="Deploy approved evolution (browser-clickable link)")
+async def hitl_approve_get(run_id: str, profile: str, skill: str):
+    """Same as POST but via GET so Telegram/Feishu message links work directly."""
+    from fastapi.responses import HTMLResponse
+    try:
+        result = _do_approve(run_id, profile, skill)
+        return HTMLResponse(
+            f"<h2>✅ Approved</h2><p>run_id: {run_id}</p>"
+            f"<p>Skill <b>{profile}/{skill}</b> has been deployed.</p>"
+            f"<pre>{result.get('output','')[:2000]}</pre>"
+        )
+    except HTTPException as e:
+        return HTMLResponse(f"<h2>❌ Error</h2><pre>{e.detail}</pre>", status_code=e.status_code)
 
 
 @app.post("/hitl/reject", summary="Reject evolution result")
 async def hitl_reject(decision: HitlDecision):
-    queue_file = DATA_DIR / "hitl-queue" / f"{decision.run_id}.json"
+    return _do_reject(decision.run_id, decision.reason)
+
+
+def _do_reject(run_id: str, reason: str = "") -> dict:
+    queue_file = DATA_DIR / "hitl-queue" / f"{run_id}.json"
     if queue_file.exists():
         entry = json.loads(queue_file.read_text())
         entry["status"] = "rejected"
-        entry["reject_reason"] = decision.reason or ""
+        entry["reject_reason"] = reason or ""
         entry["rejected_at"] = datetime.now(timezone.utc).isoformat()
         queue_file.write_text(json.dumps(entry, indent=2, ensure_ascii=False))
+    return {"status": "rejected", "run_id": run_id}
 
-    return {"status": "rejected", "run_id": decision.run_id}
+
+@app.get("/hitl/reject", summary="Reject evolution result (browser-clickable link)")
+async def hitl_reject_get(run_id: str, profile: str, skill: str, reason: str = ""):
+    """GET version for clickable links in Telegram/Feishu messages."""
+    from fastapi.responses import HTMLResponse
+    _do_reject(run_id, reason)
+    return HTMLResponse(
+        f"<h2>❌ Rejected</h2><p>run_id: {run_id}</p>"
+        f"<p>Evolution of <b>{profile}/{skill}</b> has been rejected.</p>"
+    )
 
 
 @app.get("/scores", summary="Evolution score history (Grafana / Prometheus)")

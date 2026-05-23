@@ -229,16 +229,19 @@ def _notify_hitl(metrics: dict, diff_url: str = ""):
     profile = metrics["profile"]
     run_id = metrics["run_id"]
 
+    _skill = metrics['skill']
+    _evo_host = os.environ.get("HERMES_EVO_HOST", "http://evo-api.nas")
+    approve_url = f"{_evo_host}/hitl/approve?run_id={run_id}&profile={profile}&skill={_skill}"
+    reject_url  = f"{_evo_host}/hitl/reject?run_id={run_id}&profile={profile}&skill={_skill}"
+
     msg = (
-        f"🧬 进化完成 | {profile}/{metrics['skill']}\n"
+        f"🧬 进化完成 | {profile}/{_skill}\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"基线: {metrics['baseline']:.1f} → 最佳: {metrics['best']:.1f} ({sign}{improvement:.1f}%)\n"
         f"优化器: {metrics['optimizer']} | 耗时: {metrics['duration_seconds']//60}min\n"
         f"Gene命中: {metrics['gene_hits']}条\n\n"
-        f"回复 approve 部署，或 reject 拒绝。\n"
-        f"Run ID: {run_id}\n"
-        f"curl -X POST http://hermes-evo-api:8621/hitl/approve "
-        f"-d '{{\"run_id\":\"{run_id}\",\"profile\":\"{profile}\",\"skill\":\"{metrics['skill']}\"}}"
+        f"✅ 部署: {approve_url}\n"
+        f"❌ 拒绝: {reject_url}"
     )
 
     # Write to hitl-queue
@@ -262,6 +265,7 @@ def _notify_hitl(metrics: dict, diff_url: str = ""):
                 "schedule": "1m",
                 "prompt": msg,
                 "deliver": deliver,
+                "no_agent": True,
                 "repeat": 1,
             },
             timeout=10,
