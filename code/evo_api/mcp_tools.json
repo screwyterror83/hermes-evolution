@@ -1,0 +1,105 @@
+{
+  "tools": [
+    {
+      "name": "evolve_skill",
+      "description": "触发指定 Hermes profile/skill 的进化优化。进化完成后会通过 Feishu/Telegram 推送 HITL 通知供审批。",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "profile": {
+            "type": "string",
+            "enum": ["coach", "architect", "founder"],
+            "description": "Hermes profile 名称"
+          },
+          "skill": {
+            "type": "string",
+            "description": "Skill 目录名（如 charm-tactics、tech-architect）"
+          },
+          "optimizer": {
+            "type": "string",
+            "default": "gepa",
+            "description": "优化器：gepa（默认，文本优化）；gepa+aflow（Phase 3，全流水线）"
+          },
+          "iterations": {
+            "type": "integer",
+            "default": 10,
+            "description": "优化迭代次数（越多越慢，建议 10-20）"
+          },
+          "dry_run": {
+            "type": "boolean",
+            "default": false,
+            "description": "仅验证配置，不执行优化"
+          }
+        },
+        "required": ["profile", "skill"]
+      }
+    },
+    {
+      "name": "evolution_status",
+      "description": "查询进化任务状态",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "task_id": {
+            "type": "string",
+            "description": "evolve_skill 返回的 task_id"
+          }
+        },
+        "required": ["task_id"]
+      }
+    },
+    {
+      "name": "evolution_approve",
+      "description": "部署已完成的进化结果到线上 SKILL.md（HITL 审批通过）",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "description": "进化 run ID（格式：YYYY-MM-DD_HHMM_profile_skill）"
+          },
+          "profile": {
+            "type": "string",
+            "enum": ["coach", "architect", "founder"]
+          },
+          "skill": {
+            "type": "string"
+          }
+        },
+        "required": ["run_id", "profile", "skill"]
+      }
+    },
+    {
+      "name": "evolution_reject",
+      "description": "拒绝本次进化结果，记录原因",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "run_id": {
+            "type": "string"
+          },
+          "profile": {
+            "type": "string",
+            "enum": ["coach", "architect", "founder"]
+          },
+          "skill": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "description": "拒绝原因（可选）"
+          }
+        },
+        "required": ["run_id", "profile", "skill"]
+      }
+    },
+    {
+      "name": "evolution_scores",
+      "description": "查看所有 skill 的历史进化分数",
+      "inputSchema": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  ]
+}

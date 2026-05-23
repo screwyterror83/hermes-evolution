@@ -1,0 +1,10 @@
+{
+  "profile": "coach",
+  "skill": "charm-tactics",
+  "updated_at": "2026-05-22",
+  "session_count_scanned": 0,
+  "relevant_fragments": 0,
+  "genes": [],
+  "kg_triples": [],
+  "_note": "Phase 1 stub. Run `runner.py extract --profile coach --skill charm-tactics` to populate."
+}

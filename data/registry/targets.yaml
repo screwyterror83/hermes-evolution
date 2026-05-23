@@ -1,0 +1,32 @@
+targets:
+  - profile: coach
+    skill: charm-tactics
+    auto: true
+    schedule: "0 2 * * 1"        # every Monday 2AM
+    optimizer: gepa               # gepa+aflow when Phase 3 ready
+    iterations: 10
+    min_improvement_pct: 2.0
+    hitl_required: true
+    notes: "Primary coaching skill. Baseline 30.76, best 38.74 (2026-05-22)."
+
+  - profile: architect
+    skill: tech-architect
+    auto: true
+    schedule: "0 3 * * 1"        # every Monday 3AM
+    optimizer: gepa
+    iterations: 10
+    min_improvement_pct: 2.0
+    hitl_required: true
+    notes: "Technical architecture skill. First evolution pending."
+
+  - profile: founder
+    skill: business-strategy
+    auto: false                   # manual trigger only
+    optimizer: gepa
+    iterations: 10
+    min_improvement_pct: 2.0
+    hitl_required: true
+    notes: "Infrequently used. Promote to auto when session count > 20/30d."
+
+# Usage frequency upgrade threshold (sessions in last 30 days)
+auto_promote_threshold: 20

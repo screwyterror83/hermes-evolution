@@ -1,0 +1,36 @@
+services:
+  evo-api:
+    container_name: hermes-evo-api
+    image: gitea.nas/admin/hermes-evo:latest
+    build:
+      context: ./code
+      dockerfile: Dockerfile
+    command: api
+    ports:
+      - "8621:8621"
+    environment:
+      - TZ=America/Los_Angeles
+      - HERMES_EVO_DATA=/data
+      - HERMES_PROFILES_DIR=/profiles
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - OPENAI_API_BASE=https://api.deepseek.com/v1
+      - HERMES_API_URL=http://hermes:8000
+    volumes:
+      - /vol2/hermes-evolution/data:/data
+      - /vol1/hermes-profiles:/profiles:ro
+      # Coach skill dirs writable for approve deployment
+      - /vol1/hermes-profiles/coach/skills:/profiles/coach/skills
+      - /vol1/hermes-profiles/architect/skills:/profiles/architect/skills
+      - /vol1/hermes-profiles/founder/skills:/profiles/founder/skills
+    networks:
+      - hermes-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8621/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+networks:
+  hermes-net:
+    external: true

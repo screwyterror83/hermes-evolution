@@ -1,0 +1,10 @@
+{
+  "profile": "architect",
+  "skill": "tech-architect",
+  "updated_at": "2026-05-22",
+  "session_count_scanned": 0,
+  "relevant_fragments": 0,
+  "genes": [],
+  "kg_triples": [],
+  "_note": "Phase 1 stub. Run `runner.py extract --profile architect --skill tech-architect` to populate."
+}

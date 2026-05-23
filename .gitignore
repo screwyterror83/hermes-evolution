@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+*.egg-info/
+.env
+data/hitl-queue/*.json
+data/results/*/evolved.md
+data/results/*/original.md

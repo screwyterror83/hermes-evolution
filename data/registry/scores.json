@@ -1,0 +1,16 @@
+[
+  {
+    "run_id": "2026-05-22_1544_coach_charm-tactics",
+    "profile": "coach",
+    "skill": "charm-tactics",
+    "optimizer": "gepa",
+    "baseline": 30.76,
+    "best": 38.74,
+    "improvement_pct": 25.94,
+    "duration_seconds": 2174,
+    "gene_hits": 0,
+    "timestamp": "2026-05-22T15:46:02+00:00",
+    "approved": false,
+    "notes": "Third MIPROv2 run (GEPA fallback). 14112 chars. Awaiting frontmatter fix + HITL."
+  }
+]
