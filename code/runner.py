@@ -27,7 +27,7 @@ SELF_EVO_DIR = Path("/opt/self-evolution")
 # Hermes API — all profiles share same key, accessible via hermes-net container names
 _HERMES_KEY = os.environ.get("HERMES_API_KEY", "51f149aa975cb5e594d329af954caa4c5dfcecae2e2a6234")
 HERMES_APIS = {
-    "personal": os.environ.get("HERMES_API_PERSONAL", "http://hermes:8643"),
+    "personal": os.environ.get("HERMES_API_PERSONAL", "http://hermes-personal:8643"),
     "coach":    os.environ.get("HERMES_API_COACH",    "http://hermes-coach:8643"),
     "architect":os.environ.get("HERMES_API_ARCHITECT","http://hermes-architect:8643"),
     "founder":  os.environ.get("HERMES_API_FOUNDER",  "http://hermes-founder:8643"),
@@ -40,7 +40,7 @@ HERMES_DELIVER = {
     "founder":  "telegram",
 }
 
-SKILL_SIZE_LIMIT = 15000  # chars
+SKILL_SIZE_LIMIT = 25000  # chars (raised from 15000 — some skills like tech-architect are 16K+)
 
 
 # ---------------------------------------------------------------------------
@@ -57,6 +57,65 @@ def _load_genes(profile: str, skill: str) -> list[dict]:
         except Exception as e:
             click.echo(f"  [warn] failed to load genes: {e}", err=True)
     return []
+
+
+def _convert_sessions(sessions_dir: Path, profile: str, limit: int = 50) -> int:
+    """Convert profile JSONL sessions → JSON format expected by evolution/skills/evolve_skill.
+
+    Replicates the conversion that the original entrypoint.sh performed before calling
+    evolve_skill. The evolution code's 'sessiondb' importer reads from ~/.hermes/sessions/*.json
+    with format: {"session_id": str, "messages": [{"role": str, "content": str}, ...]}.
+    """
+    dst = Path.home() / ".hermes" / "sessions"
+    dst.mkdir(parents=True, exist_ok=True)
+
+    if not sessions_dir.exists():
+        click.echo(f"  [warn] sessions dir not found: {sessions_dir}", err=True)
+        return 0
+
+    session_files = sorted(sessions_dir.glob("*.jsonl"), key=os.path.getmtime, reverse=True)[:limit]
+    converted = 0
+
+    for jsonl_path in session_files:
+        session_id = jsonl_path.stem
+        messages = []
+        try:
+            with open(jsonl_path, errors="replace") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        d = json.loads(line)
+                        role = d.get("role", d.get("type", ""))
+                        if role not in ("user", "assistant", "tool"):
+                            continue
+                        content = d.get("content", "")
+                        if isinstance(content, list):
+                            content = " ".join(
+                                c.get("text", "") if isinstance(c, dict) else str(c)
+                                for c in content
+                            )
+                        msg = {"role": role, "content": str(content)}
+                        if role == "assistant" and d.get("tool_calls"):
+                            msg["tool_calls"] = d["tool_calls"]
+                        messages.append(msg)
+                    except Exception:
+                        continue
+        except Exception:
+            continue
+
+        if not messages:
+            continue
+
+        out = {"session_id": session_id, "messages": messages}
+        out_path = dst / f"{session_id}.json"
+        with open(out_path, "w", encoding="utf-8") as f:
+            json.dump(out, f, ensure_ascii=False)
+        converted += 1
+
+    click.echo(f"  Sessions converted: {converted} → {dst}")
+    return converted
 
 
 def _detect_gepa_param() -> str:
@@ -188,9 +247,10 @@ def _notify_hitl(metrics: dict, diff_url: str = ""):
     queue_file.parent.mkdir(parents=True, exist_ok=True)
     queue_file.write_text(json.dumps(queue_entry, indent=2, ensure_ascii=False))
 
-    # Push via Hermes gateway — create one-shot cron job (repeat=1, @now)
-    api_url = HERMES_APIS.get(profile, HERMES_APIS["personal"])
-    deliver = HERMES_DELIVER.get(profile, "telegram")
+    # Always push via personal profile — it has both Telegram + Feishu connected.
+    # Evolved profile may be coach/architect/founder with no direct user platform binding.
+    api_url = HERMES_APIS["personal"]
+    deliver = "telegram,feishu"  # both platforms simultaneously
 
     try:
         resp = httpx.post(
@@ -268,6 +328,10 @@ def run(profile, skill, optimizer, iterations, model, eval_model, dry_run):
         click.echo("\n  [dry-run] Config valid. Exiting without optimization.")
         return
 
+    # Convert JSONL sessions → JSON format expected by evolution code
+    # (replicates what the original entrypoint.sh did before calling evolve_skill)
+    _convert_sessions(sessions_dir, profile)
+
     # Detect GEPA parameter name dynamically
     gepa_param = _detect_gepa_param()
     click.echo(f"  GEPA param detected: {gepa_param}")
@@ -285,6 +349,19 @@ def run(profile, skill, optimizer, iterations, model, eval_model, dry_run):
         if patched != content:
             evolve_script.write_text(patched)
             click.echo("  GEPA patch applied (max_steps → max_full_evals)")
+
+    # Patch EvolutionConfig.max_skill_size to 25000
+    # (entrypoint.sh git pull resets it to 15000 each run)
+    config_py = SELF_EVO_DIR / "evolution" / "core" / "config.py"
+    if config_py.exists():
+        cfg_content = config_py.read_text()
+        cfg_patched = cfg_content.replace(
+            "max_skill_size: int = 15_000",
+            "max_skill_size: int = 25_000",
+        )
+        if cfg_patched != cfg_content:
+            config_py.write_text(cfg_patched)
+            click.echo("  Config patch applied (max_skill_size 15K → 25K)")
 
     # Run self-evolution
     env = {
@@ -308,8 +385,13 @@ def run(profile, skill, optimizer, iterations, model, eval_model, dry_run):
     click.echo(f"\n  Running: {' '.join(cmd)}\n")
     start = time.time()
 
-    result = subprocess.run(cmd, env=env, cwd=str(SELF_EVO_DIR))
+    result = subprocess.run(cmd, env=env, cwd=str(SELF_EVO_DIR),
+                            capture_output=True, text=True)
     duration = time.time() - start
+
+    # Stream captured output so it's visible in logs
+    combined = (result.stdout or "") + (result.stderr or "")
+    print(combined, flush=True)
 
     # Find evolved output
     evo_output_dir = SELF_EVO_DIR / "output" / skill
@@ -336,11 +418,20 @@ def run(profile, skill, optimizer, iterations, model, eval_model, dry_run):
     shutil.copy2(evolved_source, run_dir / "evolved.md")
     shutil.copy2(original_skill, run_dir / "original.md")
 
-    # Extract scores from result (best effort, parse from stdout)
-    best_score = 0.0
-    baseline_score = 0.0
+    # Extract scores from captured stdout
+    # Pattern: "Average Metric: 6.55 / 18 (36.4%): 100%|..."
+    import re
+    score_matches = re.findall(r"Average Metric:.*?\(([\d.]+)%\)", combined)
+    if score_matches:
+        baseline_score = float(score_matches[0]) / 100.0
+        best_score = max(float(s) for s in score_matches) / 100.0
+    else:
+        best_score = 0.0
+        baseline_score = 0.0
 
-    # Write metrics (scores TBD — parse from log or default)
+    click.echo(f"  Scores — baseline: {baseline_score:.3f}, best: {best_score:.3f}")
+
+    # Write metrics
     metrics = _write_metrics(
         run_dir=run_dir,
         baseline=baseline_score,
