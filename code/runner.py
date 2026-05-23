@@ -341,14 +341,32 @@ def run(profile, skill, optimizer, iterations, model, eval_model, dry_run):
     run_dir = DATA_DIR / "results" / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    # Patch evolve_skill.py GEPA parameter if needed
+    # Patch evolve_skill.py:
+    #   1. GEPA metric wrapper: GEPA requires 5-arg metric (gold,pred,trace,pred_name,pred_trace)
+    #      but skill_fitness_metric only has 3. Wrap it before the try block.
+    #   2. GEPA parameter name: max_steps → max_full_evals if needed.
     evolve_script = SELF_EVO_DIR / "evolution" / "skills" / "evolve_skill.py"
-    if evolve_script.exists() and gepa_param == "max_full_evals":
+    if evolve_script.exists():
         content = evolve_script.read_text()
-        patched = content.replace("max_steps=iterations", "max_full_evals=iterations")
+        # Patch 1: inject gepa_metric wrapper before the try: block
+        GEPA_WRAPPER = (
+            "    # GEPA requires 5-arg metric; wrap skill_fitness_metric\n"
+            "    def gepa_metric(gold, pred, trace=None, pred_name=None, pred_trace=None):\n"
+            "        return skill_fitness_metric(gold, pred, trace)\n"
+            "    try:\n"
+        )
+        patched = content.replace("    try:\n        optimizer = dspy.GEPA(", GEPA_WRAPPER + "        optimizer = dspy.GEPA(")
+        # Patch 2: use gepa_metric instead of skill_fitness_metric for GEPA
+        patched = patched.replace(
+            "        optimizer = dspy.GEPA(\n            metric=skill_fitness_metric,",
+            "        optimizer = dspy.GEPA(\n            metric=gepa_metric,",
+        )
+        # Patch 3: max_steps → max_full_evals if needed
+        if gepa_param == "max_full_evals":
+            patched = patched.replace("max_steps=iterations", "max_full_evals=iterations")
         if patched != content:
             evolve_script.write_text(patched)
-            click.echo("  GEPA patch applied (max_steps → max_full_evals)")
+            click.echo("  GEPA patch applied (5-arg metric wrapper + param name)")
 
     # Patch EvolutionConfig.max_skill_size to 25000
     # (entrypoint.sh git pull resets it to 15000 each run)
