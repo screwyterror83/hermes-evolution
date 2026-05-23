@@ -1,0 +1,44 @@
+{
+  "profile": "coach",
+  "skill": "charm-coach",
+  "updated_at": "2026-05-23",
+  "session_count_scanned": 50,
+  "relevant_fragments": 6,
+  "genes": [
+    {
+      "id": "g001",
+      "type": "effective_pattern",
+      "content": "在回应对方前，先查询历史会话确认节奏和上下文，再调用charm tactics适配的回应方式，避免盲目回复。",
+      "strength": 0.8,
+      "evidence_sessions": [
+        "session_id"
+      ]
+    },
+    {
+      "id": "g002",
+      "type": "effective_pattern",
+      "content": "将神经科学原理（如状态依存记忆、杏仁核激活、催产素作用）提炼为关系推进策略，并结构化存入skill知识库。",
+      "strength": 0.7,
+      "evidence_sessions": [
+        "session_id"
+      ]
+    }
+  ],
+  "kg_triples": [
+    {
+      "subject": "charm_tactics_skill",
+      "predicate": "基于",
+      "object_": "神经科学原理"
+    },
+    {
+      "subject": "回应策略",
+      "predicate": "需要",
+      "object_": "历史会话上下文"
+    },
+    {
+      "subject": "状态依存记忆",
+      "predicate": "支持",
+      "object_": "情绪状态作为记忆提取线索"
+    }
+  ]
+}

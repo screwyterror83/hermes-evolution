@@ -28,14 +28,14 @@ targets:
 
   # ── coach ────────────────────────────────────────────────────────
   - profile: coach
-    skill: charm-tactics
+    skill: charm-coach
     auto: true
     schedule: "0 2 * * 1"        # every Monday 2AM
     optimizer: gepa+aflow
     iterations: 10
     min_improvement_pct: 2.0
     hitl_required: true
-    notes: "Primary coaching skill. First GEPA runs 0% improvement — needs gene injection. Baseline ~0.30."
+    notes: "Renamed from charm-tactics 2026-05-23. Merged charm-playbook v2.1 + charm-tactics v4.0 → v5.0-unified. Baseline ~0.30."
 
   # ── architect ───────────────────────────────────────────────────
   - profile: architect
