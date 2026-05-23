@@ -131,6 +131,11 @@ def _write_metrics(run_dir: Path, baseline: float, best: float, duration: float,
             pass
     scores.append(metrics)
     scores_file.write_text(json.dumps(scores, indent=2, ensure_ascii=False))
+
+    # Emit structured log line for Loki/Grafana ingestion
+    log_line = {**metrics, "type": "evolution_metric"}
+    print(json.dumps(log_line, ensure_ascii=False), flush=True)
+
     return metrics
 
 
@@ -170,7 +175,7 @@ def _notify_hitl(metrics: dict, diff_url: str = ""):
                      "Content-Type": "application/json"},
             json={
                 "name": f"[evo-hitl] {profile}/{metrics['skill']} {run_id[:8]}",
-                "schedule": "@now",
+                "schedule": "1m",
                 "prompt": msg,
                 "deliver": deliver,
                 "repeat": 1,
