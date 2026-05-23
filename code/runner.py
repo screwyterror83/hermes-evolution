@@ -356,7 +356,7 @@ def run(profile, skill, optimizer, iterations, model, eval_model, dry_run):
         if si != -1 and ei != -1 and "reflection_lm" not in content[si:ei]:
             new_section = (
                 "    # ── 5. Run GEPA optimization ──────────────────────────────────────────\n"
-                "    console.print(f\"\\n[bold cyan]Running GEPA optimization ({iterations} iterations)...[/bold cyan]\\n\")\n"
+                "    console.print(f\"\\\\n[bold cyan]Running GEPA optimization ({iterations} iterations)...[/bold cyan]\\\\n\")\n"
                 "\n"
                 "    start_time = time.time()\n"
                 "\n"
