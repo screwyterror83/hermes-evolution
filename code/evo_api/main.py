@@ -342,6 +342,33 @@ async def hitl_reject_get(run_id: str, profile: str, skill: str, reason: str = "
     )
 
 
+@app.get("/hitl/pending", summary="List pending HITL items")
+async def hitl_pending():
+    """Return all hitl-queue entries with status=pending."""
+    queue_dir = DATA_DIR / "hitl-queue"
+    if not queue_dir.exists():
+        return []
+    pending = []
+    for f in sorted(queue_dir.glob("*.json")):
+        try:
+            entry = json.loads(f.read_text())
+            if entry.get("status") == "pending":
+                pending.append({
+                    "run_id": entry.get("run_id"),
+                    "profile": entry.get("profile"),
+                    "skill": entry.get("skill"),
+                    "baseline": entry.get("baseline"),
+                    "best": entry.get("best"),
+                    "improvement_pct": entry.get("improvement_pct"),
+                    "optimizer": entry.get("optimizer"),
+                    "duration_seconds": entry.get("duration_seconds"),
+                    "timestamp": entry.get("timestamp"),
+                })
+        except Exception:
+            pass
+    return pending
+
+
 @app.get("/scores", summary="Evolution score history (Grafana / Prometheus)")
 async def scores():
     scores_file = DATA_DIR / "registry" / "scores.json"
