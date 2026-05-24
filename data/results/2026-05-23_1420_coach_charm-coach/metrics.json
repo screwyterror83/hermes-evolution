@@ -1,0 +1,14 @@
+{
+  "run_id": "2026-05-23_1420_coach_charm-coach",
+  "profile": "coach",
+  "skill": "charm-coach",
+  "optimizer": "gepa+aflow",
+  "baseline": 0.3,
+  "best": 0.715,
+  "improvement_pct": 138.33,
+  "duration_seconds": 12534,
+  "gene_hits": 7,
+  "timestamp": "2026-05-24T00:48:59.568494+00:00",
+  "approved": true,
+  "approved_at": "2026-05-24T01:09:22.683386+00:00"
+}
