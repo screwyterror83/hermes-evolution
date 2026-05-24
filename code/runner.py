@@ -382,7 +382,7 @@ def _notify_hitl(metrics: dict, diff_url: str = ""):
     # This prevents the agent from autonomously approving based on good metrics.
     msg = (
         f"🧬 {profile}/{_skill} 进化任务已完成，run_id: {run_id}\n"
-        f"在 Hermes 中发送 /hitl 查看结果并审批。"
+        f"回复「approve」批准或「reject」拒绝。"
     )
 
     # Write to hitl-queue
