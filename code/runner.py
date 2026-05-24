@@ -26,6 +26,8 @@ SELF_EVO_DIR = Path("/opt/self-evolution")
 
 # Hermes API — all profiles share same key, accessible via hermes-net container names
 _HERMES_KEY = os.environ.get("HERMES_API_KEY", "51f149aa975cb5e594d329af954caa4c5dfcecae2e2a6234")
+# External URL for clickable HITL approve/reject links (must be reachable from browser)
+EVO_API_EXTERNAL = os.environ.get("HERMES_EVO_HOST", "http://192.168.0.154:8621")
 HERMES_APIS = {
     "personal": os.environ.get("HERMES_API_PERSONAL", "http://hermes-personal:8643"),
     "coach":    os.environ.get("HERMES_API_COACH",    "http://hermes-coach:8643"),
@@ -375,14 +377,12 @@ def _notify_hitl(metrics: dict, diff_url: str = ""):
 
     _skill = metrics['skill']
 
+    # Notification: minimal info only — no scores, no approve/reject language.
+    # Scores + approve/reject are handled via /hitl command in a separate turn.
+    # This prevents the agent from autonomously approving based on good metrics.
     msg = (
-        f"🧬 进化完成 | {profile}/{_skill}\n"
-        f"基线: {metrics['baseline']:.3f} → 最佳: {metrics['best']:.3f} ({sign}{improvement:.1f}%)\n"
-        f"优化器: {metrics['optimizer']} | 耗时: {metrics['duration_seconds']//60}min\n"
-        f"Gene命中: {metrics['gene_hits']}条\n\n"
-        f"Run ID: {run_id}\n"
-        f"批准: POST http://192.168.0.154:8621/hitl/approve  body: {{\"run_id\":\"{run_id}\",\"profile\":\"{profile}\",\"skill\":\"{_skill}\"}}\n"
-        f"拒绝: POST http://192.168.0.154:8621/hitl/reject   body: {{\"run_id\":\"{run_id}\",\"profile\":\"{profile}\",\"skill\":\"{_skill}\"}}"
+        f"🧬 {profile}/{_skill} 进化任务已完成，run_id: {run_id}\n"
+        f"在 Hermes 中发送 /hitl 查看结果并审批。"
     )
 
     # Write to hitl-queue
