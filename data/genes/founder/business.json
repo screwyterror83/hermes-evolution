@@ -1,8 +1,8 @@
 {
   "profile": "founder",
   "skill": "business",
-  "updated_at": "2026-05-23",
-  "session_count_scanned": 20,
+  "updated_at": "2026-05-25",
+  "session_count_scanned": 23,
   "relevant_fragments": 26,
   "genes": [
     {
@@ -67,48 +67,55 @@
       "evidence_sessions": [
         "session_founder_business_001"
       ]
+    },
+    {
+      "id": "g008",
+      "type": "effective_pattern",
+      "content": "用户明确要求跳出单一搜索渠道，使用RSS、论坛等多源聚合来获取高质量信息，并主动提供具体媒体源列表。",
+      "strength": 0.85,
+      "evidence_sessions": [
+        "session_001"
+      ]
+    },
+    {
+      "id": "g009",
+      "type": "anti_pattern",
+      "content": "Agent过度依赖Google搜索且未主动扩展信息渠道，导致用户反馈数据落后、质量差，需要用户反复纠正方向。",
+      "strength": 0.9,
+      "evidence_sessions": [
+        "session_001"
+      ]
+    },
+    {
+      "id": "g010",
+      "type": "effective_pattern",
+      "content": "用户将复杂问题拆解为可验证的子变量（市场接受度、竞争壁垒、自身能力），并明确要求Agent从网上找细节证据。",
+      "strength": 0.8,
+      "evidence_sessions": [
+        "session_001"
+      ]
     }
   ],
   "kg_triples": [
     {
-      "subject": "用户(founder)",
-      "predicate": "要求",
-      "object_": "Agent突破单一搜索渠道"
-    },
-    {
-      "subject": "用户(founder)",
-      "predicate": "评估",
-      "object_": "Google搜索返回质量不好"
+      "subject": "用户",
+      "predicate": "偏好",
+      "object_": "多源信息聚合（RSS、论坛）而非单一搜索引擎"
     },
     {
       "subject": "Agent",
-      "predicate": "初始依赖",
-      "object_": "Google搜索作为主要信息源"
+      "predicate": "默认策略",
+      "object_": "过度依赖Google搜索"
     },
     {
-      "subject": "用户(founder)",
-      "predicate": "偏好",
-      "object_": "RSS集成和论坛作为替代信息渠道"
+      "subject": "用户",
+      "predicate": "要求",
+      "object_": "Agent主动扩展信息渠道并验证数据时效性"
     },
     {
-      "subject": "用户(founder)",
-      "predicate": "提出",
-      "object_": "核心问题框架（三个关键变量）"
-    },
-    {
-      "subject": "市场接受度",
-      "predicate": "需要验证",
-      "object_": "印尼用户付费意愿"
-    },
-    {
-      "subject": "竞争壁垒",
-      "predicate": "存在",
-      "object_": "窗口期"
-    },
-    {
-      "subject": "自身能力",
-      "predicate": "短板是",
-      "object_": "印尼本地化"
+      "subject": "用户",
+      "predicate": "使用",
+      "object_": "结构化问题拆解方法（变量-现状-可信度）"
     }
   ]
 }

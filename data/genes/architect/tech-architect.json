@@ -1,9 +1,9 @@
 {
   "profile": "architect",
   "skill": "tech-architect",
-  "updated_at": "2026-05-23",
-  "session_count_scanned": 30,
-  "relevant_fragments": 4,
+  "updated_at": "2026-05-25",
+  "session_count_scanned": 0,
+  "relevant_fragments": 0,
   "genes": [
     {
       "id": "g001",
@@ -22,28 +22,41 @@
       "evidence_sessions": [
         "session_20260513_152546"
       ]
+    },
+    {
+      "id": "g003",
+      "type": "effective_pattern",
+      "content": "自我介绍时先明确角色定位、核心能力、工作方式，并附带示例，有助于建立信任和协作预期。",
+      "strength": 0.8,
+      "evidence_sessions": [
+        "session_20260513_152546"
+      ]
+    },
+    {
+      "id": "g004",
+      "type": "anti_pattern",
+      "content": "用户提出模糊问题（如‘这是chat id吗？’）时，若未先澄清需求直接猜测，可能导致误解和无效回复。",
+      "strength": 0.7,
+      "evidence_sessions": [
+        "session_20260513_152546"
+      ]
     }
   ],
   "kg_triples": [
     {
-      "subject": "Tech Architect",
-      "predicate": "has_capability",
-      "object_": "系统架构设计"
+      "subject": "工程架构师",
+      "predicate": "具备",
+      "object_": "系统架构设计能力"
     },
     {
-      "subject": "Tech Architect",
-      "predicate": "has_capability",
-      "object_": "CI/CD 流水线"
+      "subject": "工程架构师",
+      "predicate": "采用",
+      "object_": "先澄清需求再给方案的工作方式"
     },
     {
-      "subject": "Tech Architect",
-      "predicate": "has_work_style",
-      "object_": "先澄清需求再给方案"
-    },
-    {
-      "subject": "Tech Architect",
-      "predicate": "has_work_style",
-      "object_": "每个建议附带技术原因"
+      "subject": "工程架构师",
+      "predicate": "提供",
+      "object_": "技术原因解释"
     }
   ]
 }

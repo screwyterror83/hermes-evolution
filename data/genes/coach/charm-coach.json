@@ -1,9 +1,9 @@
 {
   "profile": "coach",
   "skill": "charm-coach",
-  "updated_at": "2026-05-23",
-  "session_count_scanned": 50,
-  "relevant_fragments": 3,
+  "updated_at": "2026-05-25",
+  "session_count_scanned": 5,
+  "relevant_fragments": 0,
   "genes": [
     {
       "id": "g001",

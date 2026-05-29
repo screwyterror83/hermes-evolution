@@ -66,5 +66,18 @@
     "gene_hits": 7,
     "timestamp": "2026-05-24T00:48:59.568494+00:00",
     "approved": false
+  },
+  {
+    "run_id": "2026-05-25_0300_architect_tech-architect",
+    "profile": "architect",
+    "skill": "tech-architect",
+    "optimizer": "gepa+aflow",
+    "baseline": 0.433,
+    "best": 0.6629999999999999,
+    "improvement_pct": 53.12,
+    "duration_seconds": 10607,
+    "gene_hits": 7,
+    "timestamp": "2026-05-25T12:57:19.242084+00:00",
+    "approved": false
   }
 ]
