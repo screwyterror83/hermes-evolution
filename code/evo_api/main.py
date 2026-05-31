@@ -175,9 +175,23 @@ def _emit_scores_to_loki():
 # Endpoints
 # ---------------------------------------------------------------------------
 
+def _allowed_profiles() -> set:
+    """Derive allowed profiles from targets.yaml. Fallback to hardcoded set."""
+    targets_file = DATA_DIR / "registry" / "targets.yaml"
+    try:
+        if targets_file.exists():
+            data = yaml.safe_load(targets_file.read_text(encoding="utf-8"))
+            profiles = {t.get("profile") for t in (data or {}).get("targets", []) if t.get("profile")}
+            if profiles:
+                return profiles
+    except Exception:
+        pass
+    return {"personal", "coach", "architect", "founder"}
+
+
 @app.post("/evolve", summary="Trigger skill evolution")
 async def evolve(req: EvolveRequest, background_tasks: BackgroundTasks):
-    if req.profile not in ("personal", "coach", "architect", "founder"):
+    if req.profile not in _allowed_profiles():
         raise HTTPException(400, f"Unknown profile: {req.profile}")
 
     skill_path = PROFILES_DIR / req.profile / "skills" / req.skill / "SKILL.md"
